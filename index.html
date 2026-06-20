@@ -337,20 +337,30 @@ async function persist(){
 }
 
 //==================== MODELO DE NEGOCIO ====================
-// Colecciones (catálogo). El precio depende del MODELO, igual para todas las colecciones de catálogo.
+// Colecciones (catálogo). El precio depende de la COMBINACIÓN colección + modelo.
 // "Personalizado" => precio y costo se definen a mano en cada pedido.
 const COLLECTIONS=['Hoodie Alma','Hoodie Origen','Hoodie Raíz','Hoodie Aura','Hoodie Árbol de la Vida','Hoodie Ascenso','Hoodie Personalizado'];
 const CUSTOM='Hoodie Personalizado';
+const CATALOG=COLLECTIONS.filter(c=>c!==CUSTOM); // colecciones con precio fijo (6)
 const MODELS=['Over Size','Clásico','Abierto con cremallera'];
 const TALLAS=['XS','S','M','L','XL','XXL'];
 // Tonos sugeridos (el usuario puede escribir otro)
 const DEFAULT_TONOS_TELA=[['Hueso','#EDE6D6'],['Beige','#D8C7A8'],['Gris','#9AA0A6'],['Verde oliva','#6B7150'],['Negro','#1c1c1c'],['Vino','#5E2230'],['Azul','#2C3E66']];
 const DEFAULT_TONOS_BORDADO=[['Negro','#1c1c1c'],['Blanco','#F4F4F4'],['Verde','#3B6B47'],['Dorado','#C9A24B'],['Café','#5A3C28'],['Terracota','#B5654A']];
 
-// Configuración por defecto: precio y costo por MODELO + tonos editables
+// Clave compuesta colección+modelo
+const pkey=(coll,model)=>coll+'||'+model;
+// Precios/costos base por modelo (semilla para generar la matriz colección×modelo)
+const BASE_PRICE={'Over Size':165000,'Clásico':150000,'Abierto con cremallera':180000};
+const BASE_COST={'Over Size':70000,'Clásico':62000,'Abierto con cremallera':82000};
+function buildDefaultMatrix(which){
+  const base=which==='price'?BASE_PRICE:BASE_COST;
+  const m={};CATALOG.forEach(c=>MODELS.forEach(mo=>{m[pkey(c,mo)]=base[mo];}));return m;
+}
+// Configuración por defecto: precio y costo por COLECCIÓN+MODELO + tonos editables
 const defaultConfig={
-  prices:{'Over Size':165000,'Clásico':150000,'Abierto con cremallera':180000},
-  costs:{'Over Size':70000,'Clásico':62000,'Abierto con cremallera':82000},
+  prices:buildDefaultMatrix('price'),
+  costs:buildDefaultMatrix('cost'),
   tonosTela:JSON.parse(JSON.stringify(DEFAULT_TONOS_TELA)),
   tonosBordado:JSON.parse(JSON.stringify(DEFAULT_TONOS_BORDADO))
 };
@@ -382,8 +392,8 @@ const today=()=>new Date().toISOString().slice(0,10);
 const monthLabel=k=>{const[y,m]=k.split('-');return ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][+m-1]+' '+y;};
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1900);}
-const priceFor=m=>state.config.prices[m]||0;
-const costFor=m=>state.config.costs[m]||0;
+const priceFor=(coll,m)=>state.config.prices[pkey(coll,m)]||0;
+const costFor=(coll,m)=>state.config.costs[pkey(coll,m)]||0;
 const STATUS_LABEL={pendiente:'Pendiente',proceso:'En proceso',entregado:'Entregado'};
 const STATUS_CLASS={pendiente:'pend',proceso:'proc',entregado:'entr'};
 const teladHex=t=>{const f=tonosTela().find(x=>x[0]===t);return f?f[1]:'#888';};
@@ -624,19 +634,21 @@ function renderRep(){
       <span class="mono tl" style="font-weight:700">${byColl[c]||0}</span></div>
     <div class="bar"><i style="width:${(byColl[c]||0)/maxC*100}%;background:var(--teal)"></i></div></div>`).join('');
 
-  // margen de contribución por modelo
-  const maxM=Math.max(1,...MODELS.map(m=>priceFor(m)-costFor(m)));
+  // margen de contribución promedio por modelo (a través de las colecciones de catálogo)
+  const contribModel=m=>{const vals=CATALOG.map(c=>priceFor(c,m)-costFor(c,m));return vals.reduce((s,v)=>s+v,0)/vals.length;};
+  const maxM=Math.max(1,...MODELS.map(m=>contribModel(m)));
   document.getElementById('contribList').innerHTML=MODELS.map(m=>{
-    const c=priceFor(m)-costFor(m),units=state.orders.filter(o=>o.model===m&&o.status==='entregado').length;
+    const c=contribModel(m),units=state.orders.filter(o=>o.model===m&&o.status==='entregado').length;
     return `<div class="prod"><div class="top"><span class="name" style="font-size:13px">${m}</span>
       <span class="mono pos" style="font-weight:700">${fmt(c)}</span></div>
     <div class="bar"><i style="width:${c/maxM*100}%;background:var(--green)"></i></div>
-    <div style="font-size:10px;color:var(--grey);margin-top:6px">${units} entregados · precio ${fmtK(priceFor(m))} · costo ${fmtK(costFor(m))}</div></div>`;
+    <div style="font-size:10px;color:var(--grey);margin-top:6px">${units} entregados · contribución promedio entre colecciones</div></div>`;
   }).join('');
 
-  // punto de equilibrio (mes actual)
+  // punto de equilibrio (mes actual): contribución promedio de toda la matriz
   const d=monthData(nowMonth());
-  const avgContrib=MODELS.reduce((s,m)=>s+(priceFor(m)-costFor(m)),0)/MODELS.length;
+  const allContrib=[];CATALOG.forEach(c=>MODELS.forEach(m=>allContrib.push(priceFor(c,m)-costFor(c,m))));
+  const avgContrib=allContrib.length?allContrib.reduce((s,v)=>s+v,0)/allContrib.length:0;
   const be=avgContrib>0?Math.ceil(d.gastos/avgContrib):0;
   document.getElementById('breakeven').innerHTML=`
     <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px"><span>Gastos fijos del mes</span><span class="mono neg">${fmt(d.gastos)}</span></div>
@@ -645,12 +657,12 @@ function renderRep(){
       <span>Necesitas entregar</span><span class="mono tl">${be} hoodies</span></div>
     <div style="font-size:11px;color:var(--grey);margin-top:8px">Llevas ${d.nEntr} entregados este mes ${d.nEntr>=be&&be>0?'— ✓ ya cubriste gastos':be>0?`— faltan ~${Math.max(0,be-d.nEntr)}`:''}</div>`;
 
-  // catálogo
-  document.getElementById('catalogList').innerHTML=MODELS.map(m=>`
-    <div class="prod"><div class="top"><span class="name" style="font-size:13px">${m}</span>
-      <span class="mono pos" style="font-weight:700">${(((priceFor(m)-costFor(m))/priceFor(m))*100||0).toFixed(0)}%</span></div>
-    <div style="display:flex;gap:16px;font-size:11px;color:var(--grey);margin-top:6px">
-      <span>Precio <b class="tl">${fmt(priceFor(m))}</b></span><span>Costo <b class="acc">${fmt(costFor(m))}</b></span></div></div>`).join('')
+  // catálogo: matriz colección × modelo
+  document.getElementById('catalogList').innerHTML=CATALOG.map(c=>`
+    <div class="prod"><div class="name" style="font-size:13px;margin-bottom:8px">${c}</div>
+    ${MODELS.map(m=>`<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--grey);padding:3px 0">
+      <span>${m}</span><span>Precio <b class="tl">${fmtK(priceFor(c,m))}</b> · Costo <b class="acc">${fmtK(costFor(c,m))}</b></span></div>`).join('')}
+    </div>`).join('')
     +`<div style="font-size:11px;color:var(--grey);margin-top:4px">✦ El Hoodie Personalizado define precio y costo en cada pedido.</div>`;
 }
 
@@ -664,7 +676,7 @@ let draft={};
 function openNewOrder(id){
   const o=id?state.orders.find(x=>x.id===id):null;
   draft=o?{...o}:{collection:COLLECTIONS[0],model:MODELS[0],talla:'M',tela:'',bordado:'',status:'pendiente',date:today(),client:'',phone:'',address:'',note:'',
-    price:priceFor(MODELS[0]),cost:costFor(MODELS[0]),payMode:'5050',payments:[]};
+    price:priceFor(COLLECTIONS[0],MODELS[0]),cost:costFor(COLLECTIONS[0],MODELS[0]),payMode:'5050',payments:[]};
   draft._editId=id||null;
   renderOrderSheet();
 }
@@ -687,7 +699,7 @@ function renderOrderSheet(){
     ${isCustom?`<div class="two"><div><label class="f">Precio (personalizado)</label><input id="oPrice" type="number" inputmode="numeric" value="${draft.price||''}" oninput="draft.price=+this.value"></div>
       <div><label class="f">Costo (personalizado)</label><input id="oCost" type="number" inputmode="numeric" value="${draft.cost||''}" oninput="draft.cost=+this.value"></div></div>
       <label class="f">Detalle del bordado / especificaciones</label><input id="oNote" type="text" value="${draft.note||''}" oninput="draft.note=this.value" placeholder="Diseño único solicitado">`
-    :`<div class="card" style="margin-top:14px;display:flex;justify-content:space-between"><span style="color:var(--grey);font-size:13px">Precio · ${draft.model}</span><b class="tl mono" id="oPriceLbl">${fmt(draft.price)}</b></div>`}
+    :`<div class="card" style="margin-top:14px;display:flex;justify-content:space-between"><span style="color:var(--grey);font-size:13px">Precio · ${draft.collection.replace('Hoodie ','')} ${draft.model}</span><b class="tl mono" id="oPriceLbl">${fmt(draft.price)}</b></div>`}
     <label class="f">Datos del cliente</label>
     <input id="oClient" type="text" value="${draft.client||''}" oninput="draft.client=this.value" placeholder="Nombre del cliente" style="margin-bottom:8px">
     <input id="oPhone" type="tel" inputmode="tel" value="${draft.phone||''}" oninput="draft.phone=this.value" placeholder="Teléfono" style="margin-bottom:8px">
@@ -708,8 +720,8 @@ function renderOrderSheet(){
     <button class="btn" onclick="saveOrder()">${draft._editId?'Guardar cambios':'Crear pedido'}</button>
     ${draft._editId?`<button class="btn red" style="margin-top:10px" onclick="delOrder('${draft._editId}');closeSheet()">Eliminar pedido</button>`:''}`);
 }
-function pickColl(c){draft.collection=c;if(c!==CUSTOM){draft.price=priceFor(draft.model);draft.cost=costFor(draft.model);}renderOrderSheet();}
-function pickModel(m){draft.model=m;if(draft.collection!==CUSTOM){draft.price=priceFor(m);draft.cost=costFor(m);}renderOrderSheet();}
+function pickColl(c){draft.collection=c;if(c!==CUSTOM){draft.price=priceFor(c,draft.model);draft.cost=costFor(c,draft.model);}renderOrderSheet();}
+function pickModel(m){draft.model=m;if(draft.collection!==CUSTOM){draft.price=priceFor(draft.collection,m);draft.cost=costFor(draft.collection,m);}renderOrderSheet();}
 function pickTela(n){draft.tela=n;renderOrderSheet();}
 function pickBord(n){draft.bordado=n;renderOrderSheet();}
 async function saveOrder(){
@@ -717,7 +729,7 @@ async function saveOrder(){
   const telaOther=document.getElementById('telaOther');if(telaOther&&telaOther.value.trim())draft.tela=telaOther.value.trim();
   const bordOther=document.getElementById('bordOther');if(bordOther&&bordOther.value.trim())draft.bordado=bordOther.value.trim();
   if(draft.collection===CUSTOM&&(!draft.price||draft.price<=0)){toast('Define el precio del personalizado');return;}
-  if(draft.collection!==CUSTOM){draft.price=priceFor(draft.model);draft.cost=costFor(draft.model);}
+  if(draft.collection!==CUSTOM){draft.price=priceFor(draft.collection,draft.model);draft.cost=costFor(draft.collection,draft.model);}
   if(draft.status==='entregado'&&!draft.deliveredDate)draft.deliveredDate=draft.date;
   if(draft.status!=='entregado')draft.deliveredDate=null;
   if(!draft.payments)draft.payments=[];
@@ -774,17 +786,24 @@ function openNew(){
 
 //==================== AJUSTES ====================
 function renderSettings(){
-  // Precios y costos por modelo (edición inline)
-  document.getElementById('setPrices').innerHTML=MODELS.map(m=>{
-    const k=m.replace(/\s/g,'_');
-    return `<div class="prod"><div style="font-weight:700;margin-bottom:8px">${m}</div>
-      <div class="two">
-        <div><label class="f">Precio venta</label><input type="number" inputmode="numeric" value="${priceFor(m)}" onchange="setPrice('${m.replace(/'/g,"\\'")}',this.value)"></div>
-        <div><label class="f">Costo confección</label><input type="number" inputmode="numeric" value="${costFor(m)}" onchange="setCost('${m.replace(/'/g,"\\'")}',this.value)"></div>
-      </div>
-      <div id="mg_${k}" style="font-size:11px;color:var(--grey);margin-top:8px">Margen: <b class="pos">${fmt(priceFor(m)-costFor(m))}</b> (${(((priceFor(m)-costFor(m))/priceFor(m))*100||0).toFixed(0)}%)</div>
+  // Precios y costos por COLECCIÓN + MODELO (edición inline)
+  document.getElementById('setPrices').innerHTML=CATALOG.map(c=>{
+    const ck=c.replace(/[^a-zA-Z0-9]/g,'');
+    return `<div class="prod"><div class="name" style="font-size:14px;font-weight:700;margin-bottom:10px">${c}</div>
+      ${MODELS.map(m=>{
+        const id=ck+'_'+m.replace(/\s/g,'');
+        return `<div style="margin-bottom:10px">
+          <label class="f" style="margin-top:0">${m}</label>
+          <div class="two">
+            <div><input type="number" inputmode="numeric" value="${priceFor(c,m)}" placeholder="Precio" onchange="setPrice('${c.replace(/'/g,"\\'")}','${m.replace(/'/g,"\\'")}',this.value)"></div>
+            <div><input type="number" inputmode="numeric" value="${costFor(c,m)}" placeholder="Costo" onchange="setCost('${c.replace(/'/g,"\\'")}','${m.replace(/'/g,"\\'")}',this.value)"></div>
+          </div>
+          <div id="mg_${id}" style="font-size:10px;color:var(--grey);margin-top:4px">Margen: <b class="pos">${fmt(priceFor(c,m)-costFor(c,m))}</b> (${(((priceFor(c,m)-costFor(c,m))/priceFor(c,m))*100||0).toFixed(0)}%)</div>
+        </div>`;
+      }).join('')}
     </div>`;
-  }).join('');
+  }).join('')
+  +`<div style="font-size:11px;color:var(--grey);margin-top:4px">Primer campo = precio de venta, segundo = costo de confección. El Hoodie Personalizado se define en cada pedido.</div>`;
   // Tonos de tela
   document.getElementById('setTela').innerHTML=tonoRows('tela');
   // Tonos de bordado
@@ -799,14 +818,16 @@ function tonoRows(kind){
     <button class="del" onclick="delTono('${kind}',${i})" style="font-size:20px;color:var(--grey);background:none;border:none;cursor:pointer">×</button>
   </div>`).join('');
 }
-async function setPrice(m,v){state.config.prices[m]=+v||0;await persist();renderRep();renderDash();updateMargins();}
-async function setCost(m,v){state.config.costs[m]=+v||0;await persist();renderRep();renderDash();updateMargins();}
+async function setPrice(c,m,v){state.config.prices[pkey(c,m)]=+v||0;await persist();renderRep();renderDash();updateMargins();}
+async function setCost(c,m,v){state.config.costs[pkey(c,m)]=+v||0;await persist();renderRep();renderDash();updateMargins();}
 async function setTonoColor(kind,i,v){const arr=kind==='tela'?state.config.tonosTela:state.config.tonosBordado;arr[i][1]=v;await persist();}
 async function setTonoName(kind,i,v){const arr=kind==='tela'?state.config.tonosTela:state.config.tonosBordado;arr[i][0]=v.trim()||arr[i][0];await persist();}
 // Refresca solo los textos de margen sin reconstruir los inputs (no roba el foco)
 function updateMargins(){
-  MODELS.forEach(m=>{const el=document.getElementById('mg_'+m.replace(/\s/g,'_'));
-    if(el)el.innerHTML=`Margen: <b class="pos">${fmt(priceFor(m)-costFor(m))}</b> (${(((priceFor(m)-costFor(m))/priceFor(m))*100||0).toFixed(0)}%)`;});
+  CATALOG.forEach(c=>{const ck=c.replace(/[^a-zA-Z0-9]/g,'');
+    MODELS.forEach(m=>{const id=ck+'_'+m.replace(/\s/g,'');
+      const el=document.getElementById('mg_'+id);
+      if(el)el.innerHTML=`Margen: <b class="pos">${fmt(priceFor(c,m)-costFor(c,m))}</b> (${(((priceFor(c,m)-costFor(c,m))/priceFor(c,m))*100||0).toFixed(0)}%)`;});});
 }
 async function addTono(kind){
   if(kind==='tela'){if(!state.config.tonosTela)state.config.tonosTela=[];state.config.tonosTela.push(['Nuevo tono','#CCCCCC']);}
@@ -853,8 +874,23 @@ function migrateConfig(){
   if(!state.config)state.config=JSON.parse(JSON.stringify(defaultConfig));
   if(!state.config.tonosTela||!state.config.tonosTela.length)state.config.tonosTela=JSON.parse(JSON.stringify(DEFAULT_TONOS_TELA));
   if(!state.config.tonosBordado||!state.config.tonosBordado.length)state.config.tonosBordado=JSON.parse(JSON.stringify(DEFAULT_TONOS_BORDADO));
-  if(!state.config.prices)state.config.prices=JSON.parse(JSON.stringify(defaultConfig.prices));
-  if(!state.config.costs)state.config.costs=JSON.parse(JSON.stringify(defaultConfig.costs));
+  // Detectar formato viejo (claves por modelo, sin '||') y convertir a matriz colección+modelo
+  const looksOld=o=>o&&Object.keys(o).length&&Object.keys(o).every(k=>!k.includes('||'));
+  if(!state.config.prices||looksOld(state.config.prices)){
+    const old=state.config.prices||{};const nm={};
+    CATALOG.forEach(c=>MODELS.forEach(m=>{nm[pkey(c,m)]=(old[m]!=null?old[m]:BASE_PRICE[m]);}));
+    state.config.prices=nm;
+  }
+  if(!state.config.costs||looksOld(state.config.costs)){
+    const old=state.config.costs||{};const nm={};
+    CATALOG.forEach(c=>MODELS.forEach(m=>{nm[pkey(c,m)]=(old[m]!=null?old[m]:BASE_COST[m]);}));
+    state.config.costs=nm;
+  }
+  // Rellenar combinaciones faltantes (por si se agregó alguna colección/modelo)
+  CATALOG.forEach(c=>MODELS.forEach(m=>{
+    if(state.config.prices[pkey(c,m)]==null)state.config.prices[pkey(c,m)]=BASE_PRICE[m];
+    if(state.config.costs[pkey(c,m)]==null)state.config.costs[pkey(c,m)]=BASE_COST[m];
+  }));
 }
 (async function(){
   const saved=await load();
