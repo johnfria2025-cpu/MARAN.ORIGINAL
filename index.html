@@ -131,6 +131,9 @@ label.f{display:block;font-size:11px;color:var(--grey);text-transform:uppercase;
 input,select{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--white);
   padding:13px;font-size:16px;font-family:inherit;}
 input:focus,select:focus{outline:none;border-color:var(--teal);}
+input[type=color]{-webkit-appearance:none;appearance:none;}
+input[type=color]::-webkit-color-swatch-wrapper{padding:0;}
+input[type=color]::-webkit-color-swatch{border:1px solid rgba(255,255,255,.2);border-radius:8px;}
 .seg{display:flex;gap:8px;}
 .seg button{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--grey);border-radius:10px;padding:11px;font-size:13px;font-weight:600;cursor:pointer;}
 .seg button.on{background:var(--accent);color:var(--white);border-color:var(--teal);}
@@ -149,7 +152,39 @@ input:focus,select:focus{outline:none;border-color:var(--teal);}
 .tabs{display:flex;gap:6px;margin-bottom:12px;}
 .tabs button{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--grey);border-radius:10px;padding:9px;font-size:12px;font-weight:600;cursor:pointer;}
 .tabs button.on{background:var(--accent);color:var(--white);border-color:var(--teal);}
+/* Order status badges */
+.st{font-size:10px;padding:3px 9px;border-radius:20px;font-weight:700;letter-spacing:.3px;}
+.st.pend{background:rgba(245,166,35,.16);color:var(--gold);border:1px solid rgba(245,166,35,.4);}
+.st.proc{background:rgba(0,212,184,.14);color:var(--teal);border:1px solid rgba(0,212,184,.4);}
+.st.entr{background:rgba(46,204,113,.16);color:var(--green);border:1px solid rgba(46,204,113,.4);}
+.order{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:13px 14px;margin-bottom:9px;}
+.order .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.order .col{font-size:14px;font-weight:700;}
+.order .spec{font-size:11px;color:var(--grey);margin-top:5px;line-height:1.5;}
+.order .spec b{color:var(--white);font-weight:600;}
+.order .ftr{display:flex;justify-content:space-between;align-items:center;margin-top:11px;padding-top:10px;border-top:1px solid var(--panel2);}
+.order .price{font-size:15px;font-weight:700;}
+.order .acts{display:flex;gap:6px;}
+.order .acts button{background:var(--panel2);border:1px solid var(--line);color:var(--grey);border-radius:8px;padding:6px 10px;font-size:11px;font-weight:600;cursor:pointer;}
+.order .acts button.go{color:var(--teal);border-color:var(--teal);}
+.order .acts button.del{color:var(--grey);padding:6px 9px;}
+.pill-row{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;}
+.pill-row button{flex-shrink:0;background:var(--panel);border:1px solid var(--line);color:var(--grey);border-radius:20px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.pill-row button.on{background:var(--accent);color:var(--white);border-color:var(--teal);}
+.kgrid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.kmini{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 8px;text-align:center;}
+.kmini .n{font-size:20px;font-weight:700;}
+.kmini .l{font-size:9px;color:var(--grey);text-transform:uppercase;letter-spacing:.5px;margin-top:3px;}
+.chip{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:13px;margin:0 6px 6px 0;cursor:pointer;color:var(--white);}
+.chip.on{border-color:var(--teal);background:var(--accent);}
+.swatch{width:14px;height:14px;border-radius:4px;border:1px solid rgba(255,255,255,.2);}
+.collgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.collcard{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px;cursor:pointer;text-align:center;}
+.collcard.on{border-color:var(--teal);background:var(--accent);}
+.collcard .cn{font-size:13px;font-weight:700;}
+.collcard .cp{font-size:10px;color:var(--grey);margin-top:3px;}
 </style>
+
 </head>
 <body>
 <header>
@@ -157,7 +192,7 @@ input:focus,select:focus{outline:none;border-color:var(--teal);}
     <span class="mark"><img src="data:image/jpeg;base64,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" alt="Maran" class="logoimg"></span>
     <div>
       <h1>MARAN.ORIGINAL</h1>
-      <div class="sub">Gestión · COP</div>
+      <div class="sub">Sobre pedido · COP</div>
     </div>
     <div class="right">
       <span>Utilidad del mes</span>
@@ -176,8 +211,8 @@ input:focus,select:focus{outline:none;border-color:var(--teal);}
       <span class="now" id="mNow" onclick="goNow()" style="display:none">Hoy</span>
     </div>
     <div class="kpis">
-      <div class="kpi" style="--c:var(--teal)"><div class="lab">Ingresos</div><div class="val mono" id="kIng">$0</div><div class="sub" id="kIngSub">0 ventas</div></div>
-      <div class="kpi" style="--c:var(--gold)"><div class="lab">Costo producción</div><div class="val mono" id="kCost">$0</div><div class="sub">prendas vendidas</div></div>
+      <div class="kpi" style="--c:var(--teal)"><div class="lab">Ingresos (entregados)</div><div class="val mono" id="kIng">$0</div><div class="sub" id="kIngSub">0 pedidos</div></div>
+      <div class="kpi" style="--c:var(--gold)"><div class="lab">Costo de confección</div><div class="val mono" id="kCost">$0</div><div class="sub">pedidos entregados</div></div>
       <div class="kpi" style="--c:var(--red)"><div class="lab">Gastos operativos</div><div class="val mono" id="kGas">$0</div><div class="sub" id="kGasSub">0 registros</div></div>
       <div class="kpi" style="--c:var(--green)"><div class="lab">Utilidad neta</div><div class="val mono" id="kUtil">$0</div><div class="sub" id="kMargin">margen 0%</div></div>
     </div>
@@ -185,49 +220,76 @@ input:focus,select:focus{outline:none;border-color:var(--teal);}
     <div class="section-title">Estado de resultados</div>
     <div class="pl" id="plBox"></div>
 
-    <div class="section-title">Capital invertido en inventario <span style="color:var(--grey);font-size:9px;letter-spacing:1px">(actual)</span></div>
+    <div class="section-title">Pedidos en taller <span style="color:var(--grey);font-size:9px;letter-spacing:1px">(actual)</span></div>
+    <div class="kgrid3">
+      <div class="kmini"><div class="n acc mono" id="kPend">0</div><div class="l">Pendientes</div></div>
+      <div class="kmini"><div class="n tl mono" id="kProc">0</div><div class="l">En proceso</div></div>
+      <div class="kmini"><div class="n pos mono" id="kEntr">0</div><div class="l">Entregados mes</div></div>
+    </div>
+    <div class="section-title">Caja del mes <span style="color:var(--grey);font-size:9px;letter-spacing:1px">(dinero real)</span></div>
     <div class="kpis">
-      <div class="kpi wide" style="--c:var(--gold)">
-        <div class="lab">Valor de prendas sin vender (al costo)</div>
-        <div class="val mono" id="kCapital">$0</div>
-        <div class="sub" id="kCapitalSub">0 unidades en stock</div>
-      </div>
+      <div class="kpi" style="--c:var(--green)"><div class="lab">Recibido (abonos + pagos)</div><div class="val mono" id="kCash">$0</div><div class="sub">entró a caja este mes</div></div>
+      <div class="kpi" style="--c:var(--gold)"><div class="lab">Por cobrar a la entrega</div><div class="val mono" id="kRecv">$0</div><div class="sub" id="kRecvSub">0 pedidos en cola</div></div>
     </div>
 
     <div class="section-title">Alertas</div>
     <div id="alertBox"></div>
   </section>
 
-  <!-- ============ MOVIMIENTOS ============ -->
+  <!-- ============ PEDIDOS ============ -->
+  <section class="view" id="v-ped">
+    <div class="pill-row">
+      <button class="on" data-pf="activos" onclick="setPedFilter('activos',this)">Activos</button>
+      <button data-pf="pendiente" onclick="setPedFilter('pendiente',this)">Pendientes</button>
+      <button data-pf="proceso" onclick="setPedFilter('proceso',this)">En proceso</button>
+      <button data-pf="entregado" onclick="setPedFilter('entregado',this)">Entregados</button>
+      <button data-pf="cobrar" onclick="setPedFilter('cobrar',this)">Por cobrar</button>
+      <button data-pf="todos" onclick="setPedFilter('todos',this)">Todos</button>
+    </div>
+    <div id="pedList"></div>
+  </section>
+
+  <!-- ============ GASTOS / MOVIMIENTOS ============ -->
   <section class="view" id="v-mov">
     <div class="tabs">
       <button class="on" data-mf="all" onclick="setMovFilter('all',this)">Todo</button>
-      <button data-mf="venta" onclick="setMovFilter('venta',this)">Ventas</button>
+      <button data-mf="venta" onclick="setMovFilter('venta',this)">Pedidos</button>
       <button data-mf="gasto" onclick="setMovFilter('gasto',this)">Gastos</button>
-      <button data-mf="prod" onclick="setMovFilter('prod',this)">Producción</button>
     </div>
     <div id="movList"></div>
-  </section>
-
-  <!-- ============ INVENTARIO ============ -->
-  <section class="view" id="v-inv">
-    <div class="section-title">Productos & inventario</div>
-    <div id="prodList"></div>
-    <button class="btn ghost" onclick="openProduct()">+ Nuevo producto</button>
   </section>
 
   <!-- ============ ANÁLISIS ============ -->
   <section class="view" id="v-rep">
     <div class="section-title">Ingresos vs. gastos · 6 meses</div>
     <div class="chartwrap"><div id="chartBars"></div>
-      <div class="legend"><span><i style="background:var(--teal)"></i>Ingresos</span><span><i style="background:var(--gold)"></i>Costo prod.</span><span><i style="background:var(--red)"></i>Gastos</span></div>
+      <div class="legend"><span><i style="background:var(--teal)"></i>Ingresos</span><span><i style="background:var(--gold)"></i>Costo confección</span><span><i style="background:var(--red)"></i>Gastos</span></div>
     </div>
 
-    <div class="section-title">Margen de contribución por producto</div>
+    <div class="section-title">Pedidos por colección</div>
+    <div id="collStats"></div>
+
+    <div class="section-title">Margen de contribución por modelo</div>
     <div id="contribList"></div>
 
     <div class="section-title">Punto de equilibrio</div>
     <div class="card" id="breakeven"></div>
+
+    <div class="section-title">Catálogo y precios</div>
+    <div id="catalogList"></div>
+    <p style="font-size:11px;color:var(--grey);text-align:center;margin-top:10px">Edita precios, costos y tonos en la pestaña Ajustes ⚙</p>
+  <!-- ============ AJUSTES ============ -->
+  <section class="view" id="v-set">
+    <div class="section-title">Precios y costos por modelo</div>
+    <div id="setPrices"></div>
+
+    <div class="section-title">Tonos de tela</div>
+    <div id="setTela"></div>
+    <button class="btn ghost" onclick="addTono('tela')" style="margin-top:6px">+ Agregar tono de tela</button>
+
+    <div class="section-title">Tonos de bordado</div>
+    <div id="setBordado"></div>
+    <button class="btn ghost" onclick="addTono('bordado')" style="margin-top:6px">+ Agregar tono de bordado</button>
 
     <div class="section-title">Datos</div>
     <div class="btn-row">
@@ -242,13 +304,14 @@ input:focus,select:focus{outline:none;border-color:var(--teal);}
   </section>
 </main>
 
-<button class="fab" id="fab" onclick="openQuick()">+</button>
+<button class="fab" id="fab" onclick="openNewOrder()">+</button>
 
 <nav>
   <button class="on" data-v="dash" onclick="nav('dash',this)"><span class="gi">◈</span>Panel</button>
-  <button data-v="mov" onclick="nav('mov',this)"><span class="gi">≡</span>Movimientos</button>
-  <button data-v="inv" onclick="nav('inv',this)"><span class="gi">▦</span>Inventario</button>
+  <button data-v="ped" onclick="nav('ped',this)"><span class="gi">▤</span>Pedidos</button>
+  <button data-v="mov" onclick="nav('mov',this)"><span class="gi">≡</span>Gastos</button>
   <button data-v="rep" onclick="nav('rep',this)"><span class="gi">◔</span>Análisis</button>
+  <button data-v="set" onclick="nav('set',this)"><span class="gi">⚙</span>Ajustes</button>
 </nav>
 
 <div class="scrim" id="scrim" onclick="closeSheet()"></div>
@@ -257,7 +320,7 @@ input:focus,select:focus{outline:none;border-color:var(--teal);}
 
 <script>
 //==================== STORAGE (IndexedDB + fallback) ====================
-const DB_NAME='textilDB', STORE='kv', KEY='state';
+const DB_NAME='maranDB', STORE='kv', KEY='state';
 let _mem=null;
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);
   r.onupgradeneeded=()=>r.result.createObjectStore(STORE);
@@ -273,20 +336,42 @@ async function persist(){
   try{localStorage.setItem(DB_NAME,data);}catch(e){_mem=state;}
 }
 
-//==================== STATE ====================
-let state={products:[],tx:[]}; // tx: {id,type:'venta'|'gasto'|'prod',date,productId,qty,amount,note,category}
-let movFilter='all';
-let selMonth=new Date().toISOString().slice(0,7);
+//==================== MODELO DE NEGOCIO ====================
+// Colecciones (catálogo). El precio depende del MODELO, igual para todas las colecciones de catálogo.
+// "Personalizado" => precio y costo se definen a mano en cada pedido.
+const COLLECTIONS=['Hoodie Alma','Hoodie Origen','Hoodie Raíz','Hoodie Aura','Hoodie Árbol de la Vida','Hoodie Ascenso','Hoodie Personalizado'];
+const CUSTOM='Hoodie Personalizado';
+const MODELS=['Over Size','Clásico','Abierto con cremallera'];
+const TALLAS=['XS','S','M','L','XL','XXL'];
+// Tonos sugeridos (el usuario puede escribir otro)
+const DEFAULT_TONOS_TELA=[['Hueso','#EDE6D6'],['Beige','#D8C7A8'],['Gris','#9AA0A6'],['Verde oliva','#6B7150'],['Negro','#1c1c1c'],['Vino','#5E2230'],['Azul','#2C3E66']];
+const DEFAULT_TONOS_BORDADO=[['Negro','#1c1c1c'],['Blanco','#F4F4F4'],['Verde','#3B6B47'],['Dorado','#C9A24B'],['Café','#5A3C28'],['Terracota','#B5654A']];
 
-const seedProducts=[
-  {id:'p1',name:'Camiseta básica',cost:15500,price:35000,stock:0,minStock:20,icon:'👕'},
-  {id:'p2',name:'Camisa formal',cost:33000,price:75000,stock:0,minStock:10,icon:'👔'},
-  {id:'p3',name:'Pantalón / Jean',cost:47000,price:110000,stock:0,minStock:10,icon:'👖'},
-  {id:'p4',name:'Vestido',cost:40500,price:95000,stock:0,minStock:8,icon:'👗'},
-  {id:'p5',name:'Chaqueta',cost:66000,price:165000,stock:0,minStock:5,icon:'🧥'},
-  {id:'p6',name:'Hoodie',cost:37000,price:80000,stock:0,minStock:12,icon:'🧶'},
-];
-const TAX=0.05;
+// Configuración por defecto: precio y costo por MODELO + tonos editables
+const defaultConfig={
+  prices:{'Over Size':165000,'Clásico':150000,'Abierto con cremallera':180000},
+  costs:{'Over Size':70000,'Clásico':62000,'Abierto con cremallera':82000},
+  tonosTela:JSON.parse(JSON.stringify(DEFAULT_TONOS_TELA)),
+  tonosBordado:JSON.parse(JSON.stringify(DEFAULT_TONOS_BORDADO))
+};
+// Acceso a los tonos vigentes (desde config)
+const tonosTela=()=>state.config.tonosTela||DEFAULT_TONOS_TELA;
+const tonosBordado=()=>state.config.tonosBordado||DEFAULT_TONOS_BORDADO;
+
+let state={config:JSON.parse(JSON.stringify(defaultConfig)),orders:[],expenses:[]};
+// order: {id,date,collection,model,talla,tela,bordado,price,cost,status,client,phone,address,note,deliveredDate,
+//         payMode:'5050'|'contra'|'total', payments:[{date,amount}]}
+// expense: {id,date,amount,category,note}
+const PAYMODES={'5050':'Anticipo 50/50','contra':'Contra entrega','total':'Pago total al pedir'};
+const ANTICIPO=0.5;
+// total abonado de un pedido
+const paidOf=o=>(o.payments||[]).reduce((s,p)=>s+p.amount,0);
+// saldo por cobrar
+const balanceOf=o=>Math.max(0,Math.round(o.price-paidOf(o)));
+
+let selMonth=new Date().toISOString().slice(0,7);
+let pedFilter='activos';
+let movFilter='all';
 
 //==================== HELPERS ====================
 const fmt=n=>{const s=n<0?'-':'';n=Math.abs(Math.round(n));return s+'$'+n.toLocaleString('es-CO');};
@@ -294,51 +379,74 @@ const fmtK=n=>{n=Math.round(n);if(Math.abs(n)>=1e6)return '$'+(n/1e6).toFixed(1)
 const monthKey=d=>d.slice(0,7);
 const nowMonth=()=>new Date().toISOString().slice(0,7);
 const today=()=>new Date().toISOString().slice(0,10);
-const prodById=id=>state.products.find(p=>p.id===id);
 const monthLabel=k=>{const[y,m]=k.split('-');return ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][+m-1]+' '+y;};
-function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1900);}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1900);}
+const priceFor=m=>state.config.prices[m]||0;
+const costFor=m=>state.config.costs[m]||0;
+const STATUS_LABEL={pendiente:'Pendiente',proceso:'En proceso',entregado:'Entregado'};
+const STATUS_CLASS={pendiente:'pend',proceso:'proc',entregado:'entr'};
+const teladHex=t=>{const f=tonosTela().find(x=>x[0]===t);return f?f[1]:'#888';};
+const bordHex=t=>{const f=tonosBordado().find(x=>x[0]===t);return f?f[1]:'#888';};
 
-//==================== MONTH AGGREGATION ====================
+//==================== AGREGACIÓN MENSUAL ====================
+// Ingreso/costo se reconocen cuando el pedido se ENTREGA (deliveredDate o date si ya está entregado)
+function recognitionDate(o){return o.status==='entregado'?(o.deliveredDate||o.date):null;}
 function monthData(mk){
-  const t=state.tx.filter(x=>monthKey(x.date)===mk);
-  let ingresos=0,costoVendido=0,gastos=0,nVentas=0,nGastos=0;
-  t.forEach(x=>{
-    if(x.type==='venta'){ingresos+=x.amount;costoVendido+=x.costAtSale||0;nVentas++;}
-    else if(x.type==='gasto'){gastos+=x.amount;nGastos++;}
+  let ingresos=0,costo=0,nEntr=0;
+  state.orders.forEach(o=>{
+    const rd=recognitionDate(o);
+    if(rd&&monthKey(rd)===mk){ingresos+=o.price;costo+=o.cost;nEntr++;}
   });
-  const bruta=ingresos-costoVendido;
+  let gastos=0,nGastos=0;
+  state.expenses.forEach(e=>{if(monthKey(e.date)===mk){gastos+=e.amount;nGastos++;}});
+  const bruta=ingresos-costo;
   const oper=bruta-gastos;
   const imp=oper>0?oper*TAX:0;
   const neta=oper-imp;
-  return {ingresos,costoVendido,gastos,bruta,oper,imp,neta,nVentas,nGastos,
+  return {ingresos,costo,gastos,bruta,oper,imp,neta,nEntr,nGastos,
     margenB:ingresos?bruta/ingresos:0,margenN:ingresos?neta/ingresos:0};
 }
-function capitalInvertido(){
-  let val=0,units=0;state.products.forEach(p=>{val+=p.stock*p.cost;units+=p.stock;});
-  return {val,units};
+const TAX=0.05;
+function backlog(){ // pedidos no entregados (pendiente+proceso)
+  const act=state.orders.filter(o=>o.status!=='entregado');
+  return {count:act.length,value:act.reduce((s,o)=>s+o.price,0)};
+}
+function countStatus(st){return state.orders.filter(o=>o.status===st).length;}
+// CAJA: dinero efectivamente recibido en el mes (suma de abonos con fecha en el mes)
+function cashIn(mk){
+  let total=0;
+  state.orders.forEach(o=>(o.payments||[]).forEach(p=>{if(monthKey(p.date)===mk)total+=p.amount;}));
+  return total;
+}
+// Total por cobrar = saldos de pedidos AÚN NO entregados (se cobran a la entrega)
+function totalReceivable(){
+  return state.orders.filter(o=>o.status!=='entregado').reduce((s,o)=>s+balanceOf(o),0);
+}
+// Pedidos no entregados con saldo pendiente
+function pendingCollection(){
+  return state.orders.filter(o=>o.status!=='entregado'&&balanceOf(o)>0);
 }
 
-//==================== RENDER DASHBOARD ====================
+//==================== DASHBOARD ====================
 function shiftMonth(dir){
   const[y,m]=selMonth.split('-').map(Number);
-  const dt=new Date(y,m-1+dir,1);
-  const next=dt.toISOString().slice(0,7);
-  if(next>nowMonth())return; // no futuro
+  const next=new Date(y,m-1+dir,1).toISOString().slice(0,7);
+  if(next>nowMonth())return;
   selMonth=next;renderDash();
 }
 function goNow(){selMonth=nowMonth();renderDash();}
 function renderDash(){
-  const mk=selMonth;
-  const isNow=(mk===nowMonth());
+  const mk=selMonth, isNow=(mk===nowMonth());
   document.getElementById('dashMonth').textContent=monthLabel(mk);
   document.getElementById('dashTag').textContent=isNow?'Mes actual':'Histórico';
   document.getElementById('mNext').disabled=isNow;
   document.getElementById('mNow').style.display=isNow?'none':'block';
+
   const d=monthData(mk);
   document.getElementById('kIng').textContent=fmt(d.ingresos);
-  document.getElementById('kIngSub').textContent=d.nVentas+(d.nVentas===1?' venta':' ventas');
-  document.getElementById('kCost').textContent=fmt(d.costoVendido);
+  document.getElementById('kIngSub').textContent=d.nEntr+(d.nEntr===1?' pedido':' pedidos');
+  document.getElementById('kCost').textContent=fmt(d.costo);
   document.getElementById('kGas').textContent=fmt(d.gastos);
   document.getElementById('kGasSub').textContent=d.nGastos+(d.nGastos===1?' registro':' registros');
   document.getElementById('kUtil').textContent=fmt(d.neta);
@@ -346,8 +454,8 @@ function renderDash(){
   document.getElementById('hdrProfit').textContent=fmtK(monthData(nowMonth()).neta);
 
   document.getElementById('plBox').innerHTML=`
-    <div class="row"><span>Ingresos por ventas</span><span class="v tl mono">${fmt(d.ingresos)}</span></div>
-    <div class="row"><span>(−) Costo de producción</span><span class="v acc mono">${fmt(-d.costoVendido)}</span></div>
+    <div class="row"><span>Ingresos (pedidos entregados)</span><span class="v tl mono">${fmt(d.ingresos)}</span></div>
+    <div class="row"><span>(−) Costo de confección</span><span class="v acc mono">${fmt(-d.costo)}</span></div>
     <div class="row tot"><span>Utilidad bruta</span><span class="v mono ${d.bruta>=0?'pos':'neg'}">${fmt(d.bruta)}</span></div>
     <div class="row sub"><span>Margen bruto</span><span>${(d.margenB*100).toFixed(1)}%</span></div>
     <div class="row"><span>(−) Gastos operativos</span><span class="v neg mono">${fmt(-d.gastos)}</span></div>
@@ -355,157 +463,290 @@ function renderDash(){
     <div class="row"><span>(−) Impuestos (${(TAX*100).toFixed(0)}%)</span><span class="v neg mono">${fmt(-d.imp)}</span></div>
     <div class="row tot"><span>Utilidad neta</span><span class="v mono ${d.neta>=0?'pos':'neg'}">${fmt(d.neta)}</span></div>`;
 
-  const cap=capitalInvertido();
-  document.getElementById('kCapital').textContent=fmt(cap.val);
-  document.getElementById('kCapitalSub').textContent=cap.units+' unidades en stock';
+  document.getElementById('kPend').textContent=countStatus('pendiente');
+  document.getElementById('kProc').textContent=countStatus('proceso');
+  document.getElementById('kEntr').textContent=d.nEntr;
+  document.getElementById('kCash').textContent=fmt(cashIn(mk));
+  document.getElementById('kRecv').textContent=fmt(totalReceivable());
+  const pc=pendingCollection();
+  document.getElementById('kRecvSub').textContent=pc.length+(pc.length===1?' pedido en cola':' pedidos en cola');
 
-  // alerts
   const ab=document.getElementById('alertBox');let html='';
-  const low=state.products.filter(p=>p.stock<=p.minStock);
-  low.forEach(p=>{
-    const crit=p.stock===0;
-    html+=`<div class="alert ${crit?'':'warn'}"><span class="ic">${crit?'⛔':'⚠️'}</span>
-      <div><b>${p.name}</b> — ${crit?'sin stock':'stock bajo'} (${p.stock} und, mín ${p.minStock})</div></div>`;
-  });
+  const pend=state.orders.filter(o=>o.status==='pendiente');
+  if(pend.length) html+=`<div class="alert warn"><span class="ic">📋</span><div><b>${pend.length}</b> pedido(s) pendiente(s) por iniciar confección.</div></div>`;
+  const proc=state.orders.filter(o=>o.status==='proceso');
+  if(proc.length) html+=`<div class="alert proc" style="background:rgba(0,212,184,.1);border-color:rgba(0,212,184,.35)"><span class="ic">🧵</span><div><b>${proc.length}</b> pedido(s) en proceso de confección.</div></div>`;
+  const pcol=pendingCollection();
+  if(pcol.length) html+=`<div class="alert warn"><span class="ic">💰</span><div>Por cobrar a la entrega: <b>${fmt(pcol.reduce((s,o)=>s+balanceOf(o),0))}</b> en ${pcol.length} pedido(s) en cola.</div></div>`;
   if(d.oper<0) html+=`<div class="alert"><span class="ic">📉</span><div>La utilidad operativa del mes es negativa. Revisa gastos o precios.</div></div>`;
-  if(!html) html=`<div class="empty" style="padding:18px"><div class="big">✓</div>Todo en orden. Sin alertas.</div>`;
+  if(!html) html=`<div class="empty" style="padding:18px"><div class="big">✓</div>Todo al día. Sin pedidos pendientes.</div>`;
   ab.innerHTML=html;
 }
 
-//==================== RENDER MOVIMIENTOS ====================
-function setMovFilter(f,btn){movFilter=f;document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderMov();}
-function renderMov(){
-  let list=[...state.tx].sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id));
-  if(movFilter!=='all') list=list.filter(x=>x.type===movFilter);
-  const box=document.getElementById('movList');
-  if(!list.length){box.innerHTML=`<div class="empty"><div class="big">≡</div>Sin movimientos.<br>Toca el botón + para registrar.</div>`;return;}
-  box.innerHTML=list.map(x=>{
-    let ic,t,d,amt,cls;
-    if(x.type==='venta'){const p=prodById(x.productId);ic='🛒';t=`Venta · ${p?p.name:'—'}`;d=`${x.qty} und · ${x.date}`;amt='+'+fmt(x.amount);cls='pos';}
-    else if(x.type==='gasto'){ic='🧾';t=x.category||'Gasto';d=`${x.note||'—'} · ${x.date}`;amt='−'+fmt(x.amount);cls='neg';}
-    else{const p=prodById(x.productId);ic='🏭';t=`Producción · ${p?p.name:'—'}`;d=`${x.qty} und fabricadas · ${x.date}`;amt=fmt(x.amount);cls='acc';}
-    return `<div class="item"><div class="ic">${ic}</div>
-      <div class="mid"><div class="t">${t}</div><div class="d">${d}</div></div>
-      <div class="amt ${cls} mono">${amt}</div>
-      <div class="del" onclick="delTx('${x.id}')">×</div></div>`;
-  }).join('');
-}
-async function delTx(id){
-  const x=state.tx.find(t=>t.id===id);if(!x)return;
-  // reverse stock effect
-  if(x.type==='prod'){const p=prodById(x.productId);if(p)p.stock-=x.qty;}
-  if(x.type==='venta'){const p=prodById(x.productId);if(p)p.stock+=x.qty;}
-  state.tx=state.tx.filter(t=>t.id!==id);
-  await persist();renderAll();toast('Movimiento eliminado');
-}
-
-//==================== RENDER INVENTARIO ====================
-function renderInv(){
-  const box=document.getElementById('prodList');
-  if(!state.products.length){box.innerHTML=`<div class="empty"><div class="big">▦</div>Sin productos aún.</div>`;return;}
-  box.innerHTML=state.products.map(p=>{
-    const margin=p.price?((p.price-p.cost)/p.price*100):0;
-    const low=p.stock<=p.minStock;
-    const fill=Math.min(100,p.minStock?p.stock/(p.minStock*2)*100:100);
-    const col=low?'var(--red)':'var(--green)';
-    return `<div class="prod" onclick="openProduct('${p.id}')">
-      <div class="top"><span class="name">${p.icon||'📦'} ${p.name}</span>
-        <span class="badge" style="background:${low?'rgba(231,76,60,.2)':'rgba(46,204,113,.18)'};color:${low?'var(--red)':'var(--green)'}">${p.stock} und</span></div>
-      <div class="grid">
-        <div class="cell"><div class="n acc mono">${fmtK(p.cost)}</div><div class="l">Costo</div></div>
-        <div class="cell"><div class="n tl mono">${fmtK(p.price)}</div><div class="l">Precio</div></div>
-        <div class="cell"><div class="n pos mono">${fmtK(p.price-p.cost)}</div><div class="l">Margen</div></div>
-        <div class="cell"><div class="n mono">${margin.toFixed(0)}%</div><div class="l">%</div></div>
+//==================== PEDIDOS ====================
+function setPedFilter(f,btn){pedFilter=f;document.querySelectorAll('.pill-row button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderPed();}
+function renderPed(){
+  let list=[...state.orders];
+  if(pedFilter==='activos') list=list.filter(o=>o.status!=='entregado');
+  else if(pedFilter==='pendiente') list=list.filter(o=>o.status==='pendiente');
+  else if(pedFilter==='proceso') list=list.filter(o=>o.status==='proceso');
+  else if(pedFilter==='entregado') list=list.filter(o=>o.status==='entregado');
+  else if(pedFilter==='cobrar') list=list.filter(o=>balanceOf(o)>0);
+  // pendientes y en proceso primero, luego por fecha desc
+  const order={pendiente:0,proceso:1,entregado:2};
+  list.sort((a,b)=>(order[a.status]-order[b.status])||b.date.localeCompare(a.date));
+  const box=document.getElementById('pedList');
+  if(!list.length){box.innerHTML=`<div class="empty"><div class="big">▤</div>Sin pedidos en esta vista.<br>Toca + para crear uno.</div>`;return;}
+  box.innerHTML=list.map(o=>{
+    const isCustom=o.collection===CUSTOM;
+    const next={pendiente:['proceso','▶ Iniciar'],proceso:['entregado','✓ Entregar'],entregado:[null,null]};
+    const[ns,nl]=next[o.status];
+    return `<div class="order">
+      <div class="top">
+        <div><div class="col">${o.collection}${isCustom?' ✦':''}</div>
+          <div class="spec"><b>${o.model}</b>${o.talla?' · Talla '+o.talla:''}${o.client?' · '+o.client:''}<br>
+          Tela: <b>${o.tela||'—'}</b> · Bordado: <b>${o.bordado||'—'}</b>${o.note?'<br>'+o.note:''}<br>
+          ${o.phone?'📞 '+o.phone+'  ':''}${o.address?'📍 '+o.address:''}${(o.phone||o.address)?'<br>':''}
+          <span style="color:var(--grey)">${o.date}${o.status==='entregado'&&o.deliveredDate?' → entregado '+o.deliveredDate:''}</span></div>
+        </div>
+        <span class="st ${STATUS_CLASS[o.status]}">${STATUS_LABEL[o.status]}</span>
       </div>
-      <div class="bar"><i style="width:${fill}%;background:${col}"></i></div>
+      <div class="spec" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="st" style="background:var(--panel2);color:var(--grey);border:1px solid var(--line)">${PAYMODES[o.payMode||'5050']}</span>
+        <span style="color:var(--grey)">Abonado <b class="pos">${fmt(paidOf(o))}</b> de ${fmt(o.price)}</span>
+        ${balanceOf(o)>0?`<span style="color:var(--gold)">· falta <b>${fmt(balanceOf(o))}</b></span>`:`<span class="pos">· pagado ✓</span>`}
+      </div>
+      <div class="ftr">
+        <div><span class="price tl mono">${fmt(o.price)}</span> <span style="font-size:10px;color:var(--grey)">· costo ${fmtK(o.cost)}</span></div>
+        <div class="acts">
+          ${ns?`<button class="go" onclick="advanceOrder('${o.id}','${ns}')">${nl}</button>`:`<button onclick="advanceOrder('${o.id}','proceso')">↩ Reabrir</button>`}
+          <button onclick="openNewOrder('${o.id}')">✎</button>
+          <button class="del" onclick="delOrder('${o.id}')">×</button>
+        </div>
+      </div>
     </div>`;
   }).join('');
 }
-
-//==================== RENDER ANÁLISIS ====================
-function last6(){
-  const arr=[];const now=new Date();
-  for(let i=5;i>=0;i--){const dt=new Date(now.getFullYear(),now.getMonth()-i,1);arr.push(dt.toISOString().slice(0,7));}
-  return arr;
+async function advanceOrder(id,to){
+  const o=state.orders.find(x=>x.id===id);if(!o)return;
+  o.status=to;
+  if(to==='entregado'){
+    if(!o.deliveredDate) o.deliveredDate=today();
+    // Al entregar, el pedido se salda: registrar el pago restante con fecha de entrega
+    if(!o.payments) o.payments=[];
+    const bal=balanceOf(o);
+    if(bal>0) o.payments.push({date:o.deliveredDate,amount:bal});
+  }
+  if(to!=='entregado') o.deliveredDate=null;
+  await persist();renderAll();
+  toast(to==='entregado'?'Pedido entregado y cobrado ✓':to==='proceso'?'En confección':'Actualizado');
 }
+async function delOrder(id){
+  state.orders=state.orders.filter(o=>o.id!==id);
+  await persist();renderAll();toast('Pedido eliminado');
+}
+// Registrar un abono/cobro con fecha
+function openPayment(id){
+  const o=state.orders.find(x=>x.id===id);if(!o)return;
+  const bal=balanceOf(o);
+  showSheet(`<h2>Registrar pago</h2><p class="hint">${o.collection} · ${o.model}${o.client?' · '+o.client:''}</p>
+    <div class="card" style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--grey);font-size:13px">Precio total</span><b class="mono">${fmt(o.price)}</b></div>
+    <div class="card" style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--grey);font-size:13px">Ya abonado</span><b class="mono pos">${fmt(paidOf(o))}</b></div>
+    <div class="card" style="display:flex;justify-content:space-between"><span style="color:var(--grey);font-size:13px">Saldo por cobrar</span><b class="mono acc">${fmt(bal)}</b></div>
+    <label class="f">Monto recibido</label><input id="payAmt" type="number" inputmode="numeric" value="${bal>0?bal:''}">
+    <label class="f">Fecha del pago</label><input id="payDate" type="date" value="${today()}">
+    <button class="btn" onclick="savePayment('${id}')">Registrar pago</button>
+    ${(o.payments||[]).length?`<div style="margin-top:16px"><label class="f">Pagos registrados</label>${
+      o.payments.map((p,i)=>`<div class="item" style="margin-bottom:6px"><div class="mid"><div class="t mono">${fmt(p.amount)}</div><div class="d">${p.date}</div></div><div class="del" onclick="delPayment('${id}',${i})">×</div></div>`).join('')
+    }</div>`:''}`);
+}
+async function savePayment(id){
+  const o=state.orders.find(x=>x.id===id);if(!o)return;
+  const amt=+document.getElementById('payAmt').value||0;
+  if(amt<=0){toast('Monto inválido');return;}
+  if(!o.payments)o.payments=[];
+  o.payments.push({date:document.getElementById('payDate').value||today(),amount:amt});
+  await persist();closeSheet();renderAll();toast('Pago registrado');
+}
+async function delPayment(id,idx){
+  const o=state.orders.find(x=>x.id===id);if(!o)return;
+  o.payments.splice(idx,1);await persist();renderAll();openPayment(id);
+}
+
+//==================== MOVIMIENTOS (pedidos + gastos juntos) ====================
+function setMovFilter(f,btn){movFilter=f;document.querySelectorAll('#v-mov .tabs button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderMov();}
+function renderMov(){
+  let rows=[];
+  if(movFilter==='all'||movFilter==='venta'){
+    state.orders.filter(o=>o.status==='entregado').forEach(o=>rows.push({type:'venta',date:o.deliveredDate||o.date,o}));
+  }
+  if(movFilter==='all'||movFilter==='gasto'){
+    state.expenses.forEach(e=>rows.push({type:'gasto',date:e.date,e}));
+  }
+  rows.sort((a,b)=>b.date.localeCompare(a.date));
+  const box=document.getElementById('movList');
+  if(!rows.length){box.innerHTML=`<div class="empty"><div class="big">≡</div>Sin movimientos.</div>`;return;}
+  box.innerHTML=rows.map(r=>{
+    if(r.type==='venta'){const o=r.o;
+      return `<div class="item"><div class="ic">🧥</div>
+        <div class="mid"><div class="t">${o.collection} · ${o.model}</div><div class="d">Entregado · ${r.date}</div></div>
+        <div class="amt pos mono">+${fmt(o.price)}</div></div>`;
+    }else{const e=r.e;
+      return `<div class="item"><div class="ic">🧾</div>
+        <div class="mid"><div class="t">${e.category}</div><div class="d">${e.note||'—'} · ${r.date}</div></div>
+        <div class="amt neg mono">−${fmt(e.amount)}</div>
+        <div class="del" onclick="delExpense('${e.id}')">×</div></div>`;
+    }
+  }).join('');
+}
+async function delExpense(id){state.expenses=state.expenses.filter(e=>e.id!==id);await persist();renderAll();toast('Gasto eliminado');}
+
+//==================== ANÁLISIS ====================
+function last6(){const arr=[],now=new Date();for(let i=5;i>=0;i--)arr.push(new Date(now.getFullYear(),now.getMonth()-i,1).toISOString().slice(0,7));return arr;}
 function renderRep(){
-  const months=last6();
-  const data=months.map(m=>({m,...monthData(m)}));
-  const max=Math.max(1,...data.map(d=>Math.max(d.ingresos,d.gastos+d.costoVendido)));
-  const W=320,H=170,pad=24,bw=(W-pad*2)/months.length;
-  let bars='';
-  data.forEach((d,i)=>{
-    const x=pad+i*bw, gw=bw*0.24;
-    const hi=d.ingresos/max*(H-40), hc=d.costoVendido/max*(H-40), hg=d.gastos/max*(H-40);
+  const months=last6(),data=months.map(m=>({m,...monthData(m)}));
+  const max=Math.max(1,...data.map(d=>Math.max(d.ingresos,d.gastos+d.costo)));
+  const W=320,H=170,pad=24,bw=(W-pad*2)/months.length;let bars='';
+  data.forEach((d,i)=>{const x=pad+i*bw,gw=bw*0.24;
+    const hi=d.ingresos/max*(H-40),hc=d.costo/max*(H-40),hg=d.gastos/max*(H-40);
     bars+=`<rect x="${x+bw*0.12}" y="${H-20-hi}" width="${gw}" height="${hi}" rx="2" fill="var(--teal)"/>`;
     bars+=`<rect x="${x+bw*0.12+gw+3}" y="${H-20-hc}" width="${gw}" height="${hc}" rx="2" fill="var(--gold)"/>`;
     bars+=`<rect x="${x+bw*0.12+(gw+3)*2}" y="${H-20-hg}" width="${gw}" height="${hg}" rx="2" fill="var(--red)"/>`;
-    bars+=`<text x="${x+bw/2}" y="${H-6}" fill="var(--grey)" font-size="9" text-anchor="middle">${monthLabel(d.m).split(' ')[0]}</text>`;
-  });
+    bars+=`<text x="${x+bw/2}" y="${H-6}" fill="var(--grey)" font-size="9" text-anchor="middle">${monthLabel(d.m).split(' ')[0]}</text>`;});
   document.getElementById('chartBars').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%">${bars}</svg>`;
 
-  // contribución por producto
-  const sales={};
-  state.tx.filter(x=>x.type==='venta').forEach(x=>{sales[x.productId]=(sales[x.productId]||0)+x.qty;});
-  const cont=[...state.products].map(p=>({p,m:p.price-p.cost,units:sales[p.id]||0,total:(p.price-p.cost)*(sales[p.id]||0)}))
-    .sort((a,b)=>b.m-a.m);
-  const maxM=Math.max(1,...cont.map(c=>c.m));
-  document.getElementById('contribList').innerHTML=cont.map(c=>`
-    <div class="prod"><div class="top"><span class="name" style="font-size:13px">${c.p.icon||''} ${c.p.name}</span>
-      <span class="mono pos" style="font-weight:700">${fmt(c.m)}</span></div>
-    <div class="bar"><i style="width:${c.m/maxM*100}%;background:var(--green)"></i></div>
-    <div style="font-size:10px;color:var(--grey);margin-top:6px">${c.units} vendidas · contribución total ${fmt(c.total)}</div></div>`).join('')
-    ||`<div class="empty">Sin productos.</div>`;
+  // pedidos por colección
+  const byColl={};COLLECTIONS.forEach(c=>byColl[c]=0);
+  state.orders.forEach(o=>{byColl[o.collection]=(byColl[o.collection]||0)+1;});
+  const maxC=Math.max(1,...Object.values(byColl));
+  document.getElementById('collStats').innerHTML=COLLECTIONS.map(c=>`
+    <div class="prod"><div class="top"><span class="name" style="font-size:13px">${c==CUSTOM?'✦ ':''}${c}</span>
+      <span class="mono tl" style="font-weight:700">${byColl[c]||0}</span></div>
+    <div class="bar"><i style="width:${(byColl[c]||0)/maxC*100}%;background:var(--teal)"></i></div></div>`).join('');
 
-  // punto de equilibrio
-  const mk=nowMonth(),d=monthData(mk);
-  const avgContrib=state.products.length?state.products.reduce((s,p)=>s+(p.price-p.cost),0)/state.products.length:0;
+  // margen de contribución por modelo
+  const maxM=Math.max(1,...MODELS.map(m=>priceFor(m)-costFor(m)));
+  document.getElementById('contribList').innerHTML=MODELS.map(m=>{
+    const c=priceFor(m)-costFor(m),units=state.orders.filter(o=>o.model===m&&o.status==='entregado').length;
+    return `<div class="prod"><div class="top"><span class="name" style="font-size:13px">${m}</span>
+      <span class="mono pos" style="font-weight:700">${fmt(c)}</span></div>
+    <div class="bar"><i style="width:${c/maxM*100}%;background:var(--green)"></i></div>
+    <div style="font-size:10px;color:var(--grey);margin-top:6px">${units} entregados · precio ${fmtK(priceFor(m))} · costo ${fmtK(costFor(m))}</div></div>`;
+  }).join('');
+
+  // punto de equilibrio (mes actual)
+  const d=monthData(nowMonth());
+  const avgContrib=MODELS.reduce((s,m)=>s+(priceFor(m)-costFor(m)),0)/MODELS.length;
   const be=avgContrib>0?Math.ceil(d.gastos/avgContrib):0;
-  const sold=d.nVentas;
   document.getElementById('breakeven').innerHTML=`
     <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px"><span>Gastos fijos del mes</span><span class="mono neg">${fmt(d.gastos)}</span></div>
-    <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px"><span>Margen contribución promedio</span><span class="mono pos">${fmt(avgContrib)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px"><span>Contribución promedio/hoodie</span><span class="mono pos">${fmt(avgContrib)}</span></div>
     <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;padding-top:8px;border-top:1px solid var(--line)">
-      <span>Necesitas vender</span><span class="mono tl">${be} prendas</span></div>
-    <div style="font-size:11px;color:var(--grey);margin-top:8px">Llevas ${sold} ventas este mes ${sold>=be&&be>0?'— ✓ ya cubriste gastos':be>0?`— faltan ~${Math.max(0,be-sold)}`:''}</div>`;
+      <span>Necesitas entregar</span><span class="mono tl">${be} hoodies</span></div>
+    <div style="font-size:11px;color:var(--grey);margin-top:8px">Llevas ${d.nEntr} entregados este mes ${d.nEntr>=be&&be>0?'— ✓ ya cubriste gastos':be>0?`— faltan ~${Math.max(0,be-d.nEntr)}`:''}</div>`;
+
+  // catálogo
+  document.getElementById('catalogList').innerHTML=MODELS.map(m=>`
+    <div class="prod"><div class="top"><span class="name" style="font-size:13px">${m}</span>
+      <span class="mono pos" style="font-weight:700">${(((priceFor(m)-costFor(m))/priceFor(m))*100||0).toFixed(0)}%</span></div>
+    <div style="display:flex;gap:16px;font-size:11px;color:var(--grey);margin-top:6px">
+      <span>Precio <b class="tl">${fmt(priceFor(m))}</b></span><span>Costo <b class="acc">${fmt(costFor(m))}</b></span></div></div>`).join('')
+    +`<div style="font-size:11px;color:var(--grey);margin-top:4px">✦ El Hoodie Personalizado define precio y costo en cada pedido.</div>`;
 }
 
-//==================== SHEETS / FORMS ====================
+//==================== SHEETS ====================
 const scrim=document.getElementById('scrim'),sheet=document.getElementById('sheet');
 function showSheet(html){sheet.innerHTML='<div class="grab"></div>'+html;scrim.classList.add('show');requestAnimationFrame(()=>sheet.classList.add('show'));}
 function closeSheet(){sheet.classList.remove('show');scrim.classList.remove('show');}
 
-function openQuick(){
-  showSheet(`<h2>Registrar movimiento</h2><p class="hint">¿Qué quieres registrar?</p>
-    <button class="btn" onclick="openSale()">🛒 Venta</button>
-    <button class="btn ghost" style="margin-top:10px" onclick="openExpense()">🧾 Gasto operativo</button>
-    <button class="btn ghost" style="margin-top:10px" onclick="openProdRun()">🏭 Producción (fabricar lote)</button>`);
+// estado temporal del formulario de pedido
+let draft={};
+function openNewOrder(id){
+  const o=id?state.orders.find(x=>x.id===id):null;
+  draft=o?{...o}:{collection:COLLECTIONS[0],model:MODELS[0],talla:'M',tela:'',bordado:'',status:'pendiente',date:today(),client:'',phone:'',address:'',note:'',
+    price:priceFor(MODELS[0]),cost:costFor(MODELS[0]),payMode:'5050',payments:[]};
+  draft._editId=id||null;
+  renderOrderSheet();
 }
-
-function openSale(){
-  if(!state.products.length){toast('Crea un producto primero');closeSheet();nav('inv',document.querySelector('[data-v=inv]'));return;}
-  const opts=state.products.map(p=>`<option value="${p.id}">${p.name} (stock ${p.stock})</option>`).join('');
-  showSheet(`<h2>🛒 Nueva venta</h2><p class="hint">Descuenta del inventario y registra ingreso.</p>
-    <label class="f">Producto</label><select id="sProd" onchange="syncSalePrice()">${opts}</select>
-    <div class="two"><div><label class="f">Cantidad</label><input id="sQty" type="number" inputmode="numeric" value="1" min="1" oninput="syncSaleTotal()"></div>
-    <div><label class="f">Precio unitario</label><input id="sPrice" type="number" inputmode="numeric" oninput="syncSaleTotal()"></div></div>
-    <label class="f">Fecha</label><input id="sDate" type="date" value="${today()}">
-    <div style="display:flex;justify-content:space-between;margin-top:16px;font-size:15px;font-weight:700">
-      <span>Total venta</span><span class="mono tl" id="sTotal">$0</span></div>
-    <button class="btn" onclick="saveSale()">Registrar venta</button>`);
-  syncSalePrice();
+function renderOrderSheet(){
+  const isCustom=draft.collection===CUSTOM;
+  const collCards=COLLECTIONS.map(c=>`<div class="collcard ${draft.collection===c?'on':''}" onclick="pickColl('${c.replace(/'/g,"\\'")}')">
+    <div class="cn">${c===CUSTOM?'✦':''} ${c.replace('Hoodie ','')}</div>
+    <div class="cp">${c===CUSTOM?'precio a definir':'catálogo'}</div></div>`).join('');
+  const modelChips=MODELS.map(m=>`<button class="chip ${draft.model===m?'on':''}" onclick="pickModel('${m}')">${m}</button>`).join('');
+  const telaChips=tonosTela().map(([n,h])=>`<button class="chip ${draft.tela===n?'on':''}" onclick="pickTela('${n.replace(/'/g,"\\'")}')"><span class="swatch" style="background:${h}"></span>${n}</button>`).join('');
+  const bordChips=tonosBordado().map(([n,h])=>`<button class="chip ${draft.bordado===n?'on':''}" onclick="pickBord('${n.replace(/'/g,"\\'")}')"><span class="swatch" style="background:${h}"></span>${n}</button>`).join('');
+  showSheet(`<h2>${draft._editId?'Editar pedido':'Nuevo pedido'}</h2><p class="hint">Confección sobre pedido. Escoge colección, modelo y tonos.</p>
+    <label class="f">Colección</label><div class="collgrid">${collCards}</div>
+    <label class="f">Modelo del hoodie</label><div style="display:flex;flex-wrap:wrap">${modelChips}</div>
+    <label class="f">Talla</label><div style="display:flex;flex-wrap:wrap">${TALLAS.map(t=>`<button class="chip ${draft.talla===t?'on':''}" onclick="draft.talla='${t}';renderOrderSheet()" style="min-width:48px;justify-content:center">${t}</button>`).join('')}</div>
+    <label class="f">Tono de tela</label><div style="display:flex;flex-wrap:wrap">${telaChips}
+      <input id="telaOther" placeholder="Otro tono..." value="${tonosTela().some(t=>t[0]===draft.tela)?'':(draft.tela||'')}" oninput="draft.tela=this.value;" style="width:auto;flex:1;min-width:120px;margin-bottom:6px"></div>
+    <label class="f">Tono de bordado</label><div style="display:flex;flex-wrap:wrap">${bordChips}
+      <input id="bordOther" placeholder="Otro tono..." value="${tonosBordado().some(t=>t[0]===draft.bordado)?'':(draft.bordado||'')}" oninput="draft.bordado=this.value;" style="width:auto;flex:1;min-width:120px;margin-bottom:6px"></div>
+    ${isCustom?`<div class="two"><div><label class="f">Precio (personalizado)</label><input id="oPrice" type="number" inputmode="numeric" value="${draft.price||''}" oninput="draft.price=+this.value"></div>
+      <div><label class="f">Costo (personalizado)</label><input id="oCost" type="number" inputmode="numeric" value="${draft.cost||''}" oninput="draft.cost=+this.value"></div></div>
+      <label class="f">Detalle del bordado / especificaciones</label><input id="oNote" type="text" value="${draft.note||''}" oninput="draft.note=this.value" placeholder="Diseño único solicitado">`
+    :`<div class="card" style="margin-top:14px;display:flex;justify-content:space-between"><span style="color:var(--grey);font-size:13px">Precio · ${draft.model}</span><b class="tl mono" id="oPriceLbl">${fmt(draft.price)}</b></div>`}
+    <label class="f">Datos del cliente</label>
+    <input id="oClient" type="text" value="${draft.client||''}" oninput="draft.client=this.value" placeholder="Nombre del cliente" style="margin-bottom:8px">
+    <input id="oPhone" type="tel" inputmode="tel" value="${draft.phone||''}" oninput="draft.phone=this.value" placeholder="Teléfono" style="margin-bottom:8px">
+    <input id="oAddress" type="text" value="${draft.address||''}" oninput="draft.address=this.value" placeholder="Dirección de entrega">
+    <label class="f">Estado</label><div class="seg">
+      <button class="${draft.status==='pendiente'?'on':''}" onclick="draft.status='pendiente';renderOrderSheet()">Pendiente</button>
+      <button class="${draft.status==='proceso'?'on':''}" onclick="draft.status='proceso';renderOrderSheet()">En proceso</button>
+      <button class="${draft.status==='entregado'?'on':''}" onclick="draft.status='entregado';renderOrderSheet()">Entregado</button></div>
+    <label class="f">Fecha del pedido</label><input id="oDate" type="date" value="${draft.date}" oninput="draft.date=this.value">
+    <label class="f">Modalidad de pago</label><div class="seg" style="flex-wrap:wrap;gap:6px">
+      <button class="${draft.payMode==='5050'?'on':''}" onclick="draft.payMode='5050';renderOrderSheet()" style="flex:1 1 100%">Anticipo 50/50</button>
+      <button class="${draft.payMode==='contra'?'on':''}" onclick="draft.payMode='contra';renderOrderSheet()">Contra entrega</button>
+      <button class="${draft.payMode==='total'?'on':''}" onclick="draft.payMode='total';renderOrderSheet()">Total al pedir</button></div>
+    ${draft._editId?'':`<div class="card" style="margin-top:10px;font-size:11px;color:var(--grey);line-height:1.5">${
+      draft.payMode==='5050'?`Se registrará un anticipo de <b class="tl">${fmt(Math.round(draft.price*ANTICIPO))}</b> hoy. El saldo lo cobras al entregar.`
+      :draft.payMode==='total'?`Se registrará el pago completo de <b class="tl">${fmt(draft.price)}</b> hoy.`
+      :`No se registra abono ahora. Cobras <b class="tl">${fmt(draft.price)}</b> al entregar.`}</div>`}
+    <button class="btn" onclick="saveOrder()">${draft._editId?'Guardar cambios':'Crear pedido'}</button>
+    ${draft._editId?`<button class="btn red" style="margin-top:10px" onclick="delOrder('${draft._editId}');closeSheet()">Eliminar pedido</button>`:''}`);
 }
-function syncSalePrice(){const p=prodById(document.getElementById('sProd').value);if(p)document.getElementById('sPrice').value=p.price;syncSaleTotal();}
-function syncSaleTotal(){const q=+document.getElementById('sQty').value||0,pr=+document.getElementById('sPrice').value||0;document.getElementById('sTotal').textContent=fmt(q*pr);}
-async function saveSale(){
-  const pid=document.getElementById('sProd').value,p=prodById(pid);
-  const qty=+document.getElementById('sQty').value||0,price=+document.getElementById('sPrice').value||0;
-  const date=document.getElementById('sDate').value||today();
-  if(qty<=0){toast('Cantidad inválida');return;}
-  if(qty>p.stock){toast(`Solo hay ${p.stock} en stock`);return;}
-  p.stock-=qty;
-  state.tx.push({id:uid(),type:'venta',date,productId:pid,qty,amount:qty*price,costAtSale:qty*p.cost});
-  await persist();closeSheet();renderAll();toast('Venta registrada');
+function pickColl(c){draft.collection=c;if(c!==CUSTOM){draft.price=priceFor(draft.model);draft.cost=costFor(draft.model);}renderOrderSheet();}
+function pickModel(m){draft.model=m;if(draft.collection!==CUSTOM){draft.price=priceFor(m);draft.cost=costFor(m);}renderOrderSheet();}
+function pickTela(n){draft.tela=n;renderOrderSheet();}
+function pickBord(n){draft.bordado=n;renderOrderSheet();}
+async function saveOrder(){
+  // capturar campos de texto libres
+  const telaOther=document.getElementById('telaOther');if(telaOther&&telaOther.value.trim())draft.tela=telaOther.value.trim();
+  const bordOther=document.getElementById('bordOther');if(bordOther&&bordOther.value.trim())draft.bordado=bordOther.value.trim();
+  if(draft.collection===CUSTOM&&(!draft.price||draft.price<=0)){toast('Define el precio del personalizado');return;}
+  if(draft.collection!==CUSTOM){draft.price=priceFor(draft.model);draft.cost=costFor(draft.model);}
+  if(draft.status==='entregado'&&!draft.deliveredDate)draft.deliveredDate=draft.date;
+  if(draft.status!=='entregado')draft.deliveredDate=null;
+  if(!draft.payments)draft.payments=[];
+  if(!draft.payMode)draft.payMode='5050';
+  // Registrar abonos automáticos SOLO al crear (no en edición, para no duplicar)
+  if(!draft._editId){
+    if(draft.payMode==='total'){
+      draft.payments=[{date:draft.date,amount:draft.price}];
+    }else if(draft.payMode==='5050'){
+      draft.payments=[{date:draft.date,amount:Math.round(draft.price*ANTICIPO)}];
+    }else{ // contra entrega: nada al pedir
+      draft.payments=[];
+    }
+  }
+  // Si está entregado, queda saldado: completar el pago restante con fecha de entrega
+  if(draft.status==='entregado'){
+    const paid=(draft.payments||[]).reduce((s,p)=>s+p.amount,0);
+    const bal=Math.round(draft.price-paid);
+    if(bal>0)draft.payments.push({date:draft.deliveredDate,amount:bal});
+  }
+  if(draft._editId){
+    const idx=state.orders.findIndex(o=>o.id===draft._editId);
+    const eid=draft._editId;delete draft._editId;
+    state.orders[idx]={...state.orders[idx],...draft,id:eid};
+  }else{
+    delete draft._editId;
+    state.orders.push({id:uid(),...draft});
+  }
+  await persist();closeSheet();renderAll();toast('Pedido guardado');
 }
 
 function openExpense(){
@@ -520,94 +761,105 @@ function openExpense(){
 async function saveExpense(){
   const amount=+document.getElementById('gAmt').value||0;
   if(amount<=0){toast('Monto inválido');return;}
-  state.tx.push({id:uid(),type:'gasto',date:document.getElementById('gDate').value||today(),
-    amount,category:document.getElementById('gCat').value,note:document.getElementById('gNote').value});
+  state.expenses.push({id:uid(),date:document.getElementById('gDate').value||today(),amount,
+    category:document.getElementById('gCat').value,note:document.getElementById('gNote').value});
   await persist();closeSheet();renderAll();toast('Gasto registrado');
 }
 
-function openProdRun(){
-  if(!state.products.length){toast('Crea un producto primero');return;}
-  const opts=state.products.map(p=>`<option value="${p.id}">${p.name} (costo ${fmtK(p.cost)})</option>`).join('');
-  showSheet(`<h2>🏭 Producción</h2><p class="hint">Fabricar un lote: suma al inventario y registra la salida de caja por el costo.</p>
-    <label class="f">Producto</label><select id="pProd" onchange="syncProdTotal()">${opts}</select>
-    <label class="f">Unidades a fabricar</label><input id="pQty" type="number" inputmode="numeric" value="10" min="1" oninput="syncProdTotal()">
-    <label class="f">Fecha</label><input id="pDate" type="date" value="${today()}">
-    <div style="display:flex;justify-content:space-between;margin-top:16px;font-size:15px;font-weight:700">
-      <span>Costo del lote</span><span class="mono acc" id="pTotal">$0</span></div>
-    <button class="btn" onclick="saveProdRun()">Registrar producción</button>`);
-  syncProdTotal();
-}
-function syncProdTotal(){const p=prodById(document.getElementById('pProd').value),q=+document.getElementById('pQty').value||0;if(p)document.getElementById('pTotal').textContent=fmt(p.cost*q);}
-async function saveProdRun(){
-  const p=prodById(document.getElementById('pProd').value),qty=+document.getElementById('pQty').value||0;
-  if(qty<=0){toast('Cantidad inválida');return;}
-  p.stock+=qty;
-  state.tx.push({id:uid(),type:'prod',date:document.getElementById('pDate').value||today(),productId:p.id,qty,amount:p.cost*qty});
-  await persist();closeSheet();renderAll();toast(`+${qty} ${p.name} al inventario`);
+function openNew(){
+  showSheet(`<h2>Registrar</h2><p class="hint">¿Qué quieres registrar?</p>
+    <button class="btn" onclick="openNewOrder()">🧥 Nuevo pedido</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="openExpense()">🧾 Gasto operativo</button>`);
 }
 
-function openProduct(id){
-  const p=id?prodById(id):null;
-  const icons=['👕','👔','👖','👗','🧥','🧶','🧦','🎽','👚','🩳','📦'];
-  showSheet(`<h2>${p?'Editar producto':'Nuevo producto'}</h2><p class="hint">Define costo de fabricación y precio de venta.</p>
-    <label class="f">Nombre</label><input id="pn" type="text" value="${p?p.name:''}" placeholder="Ej. Camiseta básica">
-    <label class="f">Ícono</label><div class="seg" id="iconSeg" style="flex-wrap:wrap">${icons.map(i=>`<button onclick="pickIcon('${i}',this)" class="${p&&p.icon===i?'on':(!p&&i==='📦'?'on':'')}" style="flex:0 0 auto;min-width:46px">${i}</button>`).join('')}</div>
-    <input type="hidden" id="pic" value="${p?p.icon:'📦'}">
-    <div class="two"><div><label class="f">Costo fabricación</label><input id="pc" type="number" inputmode="numeric" value="${p?p.cost:''}" placeholder="0"></div>
-    <div><label class="f">Precio venta</label><input id="pp" type="number" inputmode="numeric" value="${p?p.price:''}" placeholder="0"></div></div>
-    <div class="two"><div><label class="f">Stock actual</label><input id="ps" type="number" inputmode="numeric" value="${p?p.stock:0}"></div>
-    <div><label class="f">Stock mínimo (alerta)</label><input id="pm" type="number" inputmode="numeric" value="${p?p.minStock:10}"></div></div>
-    <button class="btn" onclick="saveProduct('${id||''}')">Guardar</button>
-    ${p?`<button class="btn red" style="margin-top:10px" onclick="delProduct('${id}')">Eliminar producto</button>`:''}`);
+//==================== AJUSTES ====================
+function renderSettings(){
+  // Precios y costos por modelo (edición inline)
+  document.getElementById('setPrices').innerHTML=MODELS.map(m=>{
+    const k=m.replace(/\s/g,'_');
+    return `<div class="prod"><div style="font-weight:700;margin-bottom:8px">${m}</div>
+      <div class="two">
+        <div><label class="f">Precio venta</label><input type="number" inputmode="numeric" value="${priceFor(m)}" onchange="setPrice('${m.replace(/'/g,"\\'")}',this.value)"></div>
+        <div><label class="f">Costo confección</label><input type="number" inputmode="numeric" value="${costFor(m)}" onchange="setCost('${m.replace(/'/g,"\\'")}',this.value)"></div>
+      </div>
+      <div id="mg_${k}" style="font-size:11px;color:var(--grey);margin-top:8px">Margen: <b class="pos">${fmt(priceFor(m)-costFor(m))}</b> (${(((priceFor(m)-costFor(m))/priceFor(m))*100||0).toFixed(0)}%)</div>
+    </div>`;
+  }).join('');
+  // Tonos de tela
+  document.getElementById('setTela').innerHTML=tonoRows('tela');
+  // Tonos de bordado
+  document.getElementById('setBordado').innerHTML=tonoRows('bordado');
 }
-function pickIcon(i,btn){document.getElementById('pic').value=i;document.querySelectorAll('#iconSeg button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
-async function saveProduct(id){
-  const name=document.getElementById('pn').value.trim();
-  if(!name){toast('Falta el nombre');return;}
-  const obj={name,icon:document.getElementById('pic').value,cost:+document.getElementById('pc').value||0,
-    price:+document.getElementById('pp').value||0,stock:+document.getElementById('ps').value||0,minStock:+document.getElementById('pm').value||0};
-  if(id){Object.assign(prodById(id),obj);}else{state.products.push({id:uid(),...obj});}
-  await persist();closeSheet();renderAll();toast('Producto guardado');
+function tonoRows(kind){
+  const arr=kind==='tela'?tonosTela():tonosBordado();
+  if(!arr.length)return `<div class="empty" style="padding:16px">Sin tonos. Agrega uno.</div>`;
+  return arr.map((t,i)=>`<div class="prod" style="display:flex;align-items:center;gap:12px;padding:11px 14px">
+    <input type="color" value="${t[1]}" onchange="setTonoColor('${kind}',${i},this.value)" style="width:42px;height:42px;padding:0;border:none;border-radius:10px;background:none;cursor:pointer;flex-shrink:0">
+    <input type="text" value="${t[0].replace(/"/g,'&quot;')}" onchange="setTonoName('${kind}',${i},this.value)" placeholder="Nombre del tono" style="flex:1">
+    <button class="del" onclick="delTono('${kind}',${i})" style="font-size:20px;color:var(--grey);background:none;border:none;cursor:pointer">×</button>
+  </div>`).join('');
 }
-async function delProduct(id){
-  state.products=state.products.filter(p=>p.id!==id);
-  await persist();closeSheet();renderAll();toast('Producto eliminado');
+async function setPrice(m,v){state.config.prices[m]=+v||0;await persist();renderRep();renderDash();updateMargins();}
+async function setCost(m,v){state.config.costs[m]=+v||0;await persist();renderRep();renderDash();updateMargins();}
+async function setTonoColor(kind,i,v){const arr=kind==='tela'?state.config.tonosTela:state.config.tonosBordado;arr[i][1]=v;await persist();}
+async function setTonoName(kind,i,v){const arr=kind==='tela'?state.config.tonosTela:state.config.tonosBordado;arr[i][0]=v.trim()||arr[i][0];await persist();}
+// Refresca solo los textos de margen sin reconstruir los inputs (no roba el foco)
+function updateMargins(){
+  MODELS.forEach(m=>{const el=document.getElementById('mg_'+m.replace(/\s/g,'_'));
+    if(el)el.innerHTML=`Margen: <b class="pos">${fmt(priceFor(m)-costFor(m))}</b> (${(((priceFor(m)-costFor(m))/priceFor(m))*100||0).toFixed(0)}%)`;});
+}
+async function addTono(kind){
+  if(kind==='tela'){if(!state.config.tonosTela)state.config.tonosTela=[];state.config.tonosTela.push(['Nuevo tono','#CCCCCC']);}
+  else{if(!state.config.tonosBordado)state.config.tonosBordado=[];state.config.tonosBordado.push(['Nuevo tono','#CCCCCC']);}
+  await persist();renderSettings();toast('Tono agregado');
+}
+async function delTono(kind,i){
+  const arr=kind==='tela'?state.config.tonosTela:state.config.tonosBordado;
+  arr.splice(i,1);await persist();renderSettings();toast('Tono eliminado');
 }
 
 //==================== DATA I/O ====================
 function exportJSON(){
   const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob),a=document.createElement('a');
-  a.href=url;a.download='textil_'+today()+'.json';a.click();URL.revokeObjectURL(url);toast('Exportado');
+  a.href=url;a.download='maran_'+today()+'.json';a.click();URL.revokeObjectURL(url);toast('Exportado');
 }
 function importJSON(e){
   const f=e.target.files[0];if(!f)return;const r=new FileReader();
-  r.onload=async()=>{try{const d=JSON.parse(r.result);if(d.products&&d.tx){state=d;await persist();renderAll();toast('Datos importados');}else toast('Archivo inválido');}catch(_){toast('No se pudo leer');}};
+  r.onload=async()=>{try{const d=JSON.parse(r.result);
+    if(d.orders&&d.config){state=d;if(!state.expenses)state.expenses=[];migrateConfig();await persist();renderAll();toast('Datos importados');}
+    else toast('Archivo inválido');}catch(_){toast('No se pudo leer');}};
   r.readAsText(f);e.target.value='';
 }
 function confirmReset(){
-  showSheet(`<h2>Borrar todo</h2><p class="hint">Esto elimina productos y movimientos de este dispositivo. No se puede deshacer.</p>
+  showSheet(`<h2>Borrar todo</h2><p class="hint">Esto elimina pedidos y gastos de este dispositivo. No se puede deshacer.</p>
     <button class="btn red" onclick="doReset()">Sí, borrar todo</button>
     <button class="btn ghost" style="margin-top:10px" onclick="closeSheet()">Cancelar</button>`);
 }
-async function doReset(){state={products:JSON.parse(JSON.stringify(seedProducts)),tx:[]};await persist();closeSheet();renderAll();toast('Datos reiniciados');}
+async function doReset(){state={config:JSON.parse(JSON.stringify(defaultConfig)),orders:[],expenses:[]};await persist();closeSheet();renderAll();toast('Datos reiniciados');}
 
-//==================== NAV / RENDER ====================
+//==================== NAV ====================
 function nav(v,btn){
   document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));
   document.getElementById('v-'+v).classList.add('active');
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
-  document.getElementById('fab').style.display=(v==='inv')?'none':'flex';
   window.scrollTo(0,0);
 }
-function renderAll(){renderDash();renderMov();renderInv();renderRep();}
+function renderAll(){renderDash();renderPed();renderMov();renderRep();renderSettings();}
 
 //==================== INIT ====================
+function migrateConfig(){
+  if(!state.config)state.config=JSON.parse(JSON.stringify(defaultConfig));
+  if(!state.config.tonosTela||!state.config.tonosTela.length)state.config.tonosTela=JSON.parse(JSON.stringify(DEFAULT_TONOS_TELA));
+  if(!state.config.tonosBordado||!state.config.tonosBordado.length)state.config.tonosBordado=JSON.parse(JSON.stringify(DEFAULT_TONOS_BORDADO));
+  if(!state.config.prices)state.config.prices=JSON.parse(JSON.stringify(defaultConfig.prices));
+  if(!state.config.costs)state.config.costs=JSON.parse(JSON.stringify(defaultConfig.costs));
+}
 (async function(){
   const saved=await load();
-  if(saved&&saved.products){state=saved;}
-  else{state={products:JSON.parse(JSON.stringify(seedProducts)),tx:[]};await persist();}
+  if(saved&&saved.orders){state=saved;if(!state.expenses)state.expenses=[];if(!state.config)state.config=JSON.parse(JSON.stringify(defaultConfig));migrateConfig();}
+  else{state={config:JSON.parse(JSON.stringify(defaultConfig)),orders:[],expenses:[]};await persist();}
   renderAll();
 })();
 </script>
