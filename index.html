@@ -106,9 +106,9 @@ main{padding:16px;max-width:680px;margin:0 auto;}
 
 nav{position:fixed;bottom:0;left:0;right:0;z-index:50;background:#06101C;border-top:1px solid var(--line);
   display:flex;padding-bottom:env(safe-area-inset-bottom);}
-nav button{flex:1;background:none;border:none;color:var(--grey);padding:10px 4px 8px;font-size:10px;cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;gap:3px;letter-spacing:.3px;}
-nav button .gi{font-size:20px;}
+nav button{flex:1;background:none;border:none;color:var(--grey);padding:9px 2px 7px;font-size:9px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:3px;letter-spacing:.2px;}
+nav button .gi{font-size:18px;}
 nav button.on{color:var(--teal);}
 
 /* FAB */
@@ -249,6 +249,21 @@ input[type=color]::-webkit-color-swatch{border:1px solid rgba(255,255,255,.2);bo
     <div id="pedList"></div>
   </section>
 
+  <!-- ============ INSUMOS / MATERIA PRIMA ============ -->
+  <section class="view" id="v-sup">
+    <div class="section-title">Inventario de materia prima</div>
+    <div class="kpis">
+      <div class="kpi" style="--c:var(--gold)"><div class="lab">Valor en bodega</div><div class="val mono" id="supValue">$0</div><div class="sub" id="supCount">0 insumos</div></div>
+      <div class="kpi" style="--c:var(--red)"><div class="lab">Stock bajo</div><div class="val mono" id="supLow">0</div><div class="sub">insumos por reponer</div></div>
+    </div>
+    <div id="supAlerts" style="margin-top:10px"></div>
+    <div class="section-title">Insumos</div>
+    <div id="supList"></div>
+    <button class="btn ghost" onclick="openSupply()" style="margin-top:6px">+ Agregar insumo</button>
+    <div class="section-title">Desperdicio acumulado</div>
+    <div class="card" id="wasteBox"></div>
+  </section>
+
   <!-- ============ GASTOS / MOVIMIENTOS ============ -->
   <section class="view" id="v-mov">
     <div class="tabs">
@@ -293,6 +308,9 @@ input[type=color]::-webkit-color-swatch{border:1px solid rgba(255,255,255,.2);bo
     <div id="setBordado"></div>
     <button class="btn ghost" onclick="addTono('bordado')" style="margin-top:6px">+ Agregar tono de bordado</button>
 
+    <div class="section-title">Consumo estándar por modelo</div>
+    <div id="setConsumo"></div>
+
     <div class="section-title">Datos</div>
     <div class="btn-row">
       <button class="btn ghost" onclick="exportJSON()">Exportar JSON</button>
@@ -311,6 +329,7 @@ input[type=color]::-webkit-color-swatch{border:1px solid rgba(255,255,255,.2);bo
 <nav>
   <button class="on" data-v="dash" onclick="nav('dash',this)"><span class="gi">◈</span>Panel</button>
   <button data-v="ped" onclick="nav('ped',this)"><span class="gi">▤</span>Pedidos</button>
+  <button data-v="sup" onclick="nav('sup',this)"><span class="gi">▬</span>Insumos</button>
   <button data-v="mov" onclick="nav('mov',this)"><span class="gi">≡</span>Gastos</button>
   <button data-v="rep" onclick="nav('rep',this)"><span class="gi">◔</span>Análisis</button>
   <button data-v="set" onclick="nav('set',this)"><span class="gi">⚙</span>Ajustes</button>
@@ -365,15 +384,27 @@ const defaultConfig={
   prices:buildDefaultMatrix('price'),
   costs:buildDefaultMatrix('cost'),
   tonosTela:JSON.parse(JSON.stringify(DEFAULT_TONOS_TELA)),
-  tonosBordado:JSON.parse(JSON.stringify(DEFAULT_TONOS_BORDADO))
+  tonosBordado:JSON.parse(JSON.stringify(DEFAULT_TONOS_BORDADO)),
+  // Consumo estándar por modelo: { modelo: { insumoId: cantidad } }
+  consumo:{}
 };
 // Acceso a los tonos vigentes (desde config)
 const tonosTela=()=>Array.isArray(state.config.tonosTela)?state.config.tonosTela:DEFAULT_TONOS_TELA;
 const tonosBordado=()=>Array.isArray(state.config.tonosBordado)?state.config.tonosBordado:DEFAULT_TONOS_BORDADO;
 
-let state={config:JSON.parse(JSON.stringify(defaultConfig)),orders:[],expenses:[]};
+// Tipos de insumo y sus unidades
+const SUPPLY_TYPES=[
+  ['tela','Tela','m'],['hilo','Hilo bordado','cono'],['cremallera','Cremallera','und'],
+  ['cordon','Cordón','m'],['etiqueta','Etiqueta','und'],['empaque','Empaque','und'],['otro','Otro','und']
+];
+const SUPPLY_LABEL=t=>{const f=SUPPLY_TYPES.find(x=>x[0]===t);return f?f[1]:t;};
+const supplies=()=>Array.isArray(state.supplies)?state.supplies:[];
+const supplyById=id=>supplies().find(s=>s.id===id);
+
+let state={config:JSON.parse(JSON.stringify(defaultConfig)),orders:[],expenses:[],supplies:[]};
+// supply: {id,name,type,unit,stock,cost,minStock, telaColor?, hiloColor?}  (telaColor/hiloColor enlazan con tonos)
 // order: {id,date,collection,model,talla,tela,bordado,price,cost,status,client,phone,address,note,deliveredDate,
-//         payMode:'5050'|'contra'|'total', payments:[{date,amount}]}
+//         payMode:'5050'|'contra'|'total', payments:[{date,amount}], consumed?:bool, usoReal?:{insumoId:cant}}
 // expense: {id,date,amount,category,note}
 const PAYMODES={'5050':'Anticipo 50/50','contra':'Contra entrega','total':'Pago total al pedir'};
 const ANTICIPO=0.5;
@@ -401,6 +432,63 @@ const STATUS_LABEL={pendiente:'Pendiente',proceso:'En proceso',entregado:'Entreg
 const STATUS_CLASS={pendiente:'pend',proceso:'proc',entregado:'entr'};
 const teladHex=t=>{const f=tonosTela().find(x=>x[0]===t);return f?f[1]:'#888';};
 const bordHex=t=>{const f=tonosBordado().find(x=>x[0]===t);return f?f[1]:'#888';};
+
+//==================== INVENTARIO DE MATERIA PRIMA ====================
+// Consumo estándar de un insumo para un modelo
+const consumoStd=(model,supplyId)=>{const c=state.config.consumo&&state.config.consumo[model];return (c&&c[supplyId])||0;};
+function setConsumo(model,supplyId,v){
+  if(!state.config.consumo)state.config.consumo={};
+  if(!state.config.consumo[model])state.config.consumo[model]={};
+  state.config.consumo[model][supplyId]=+v||0;
+}
+// Lista de {supply, qty} que un pedido consumiría (consumo estándar), resolviendo color
+function plannedConsumption(o){
+  const out=[];const cons=state.config.consumo&&state.config.consumo[o.model];
+  if(!cons)return out;
+  // Tela: cantidad bajo clave __tela__, se descuenta del rollo del color del pedido
+  if(cons['__tela__']>0){
+    const real=supplies().find(s=>s.type==='tela'&&s.telaColor===o.tela);
+    if(real)out.push({supply:real,qty:cons['__tela__']});
+    else out.push({supply:null,qtyMissing:cons['__tela__'],templateName:'Tela '+(o.tela||'(sin color)')});
+  }
+  // Hilo: clave __hilo__, color del bordado del pedido
+  if(cons['__hilo__']>0){
+    const real=supplies().find(s=>s.type==='hilo'&&s.hiloColor===o.bordado);
+    if(real)out.push({supply:real,qty:cons['__hilo__']});
+    else out.push({supply:null,qtyMissing:cons['__hilo__'],templateName:'Hilo '+(o.bordado||'(sin color)')});
+  }
+  // Resto de insumos por id
+  Object.keys(cons).forEach(sid=>{
+    if(sid==='__tela__'||sid==='__hilo__')return;
+    const qty=cons[sid]; if(qty<=0)return;
+    const sup=supplyById(sid); if(!sup)return;
+    if(sup.type==='tela'||sup.type==='hilo')return;
+    out.push({supply:sup,qty});
+  });
+  return out;
+}
+
+// Descontar materia prima del inventario (al pasar a proceso)
+async function consumeForOrder(o){
+  if(o.consumed)return;
+  plannedConsumption(o).forEach(p=>{ if(p.supply){p.supply.stock=+(p.supply.stock-p.qty).toFixed(3);} });
+  o.consumed=true;
+}
+// Reponer (si se reabre un pedido o se elimina)
+async function restoreForOrder(o){
+  if(!o.consumed)return;
+  // Si tiene uso real registrado, reponer lo real; si no, lo estándar
+  if(o.usoReal){
+    Object.keys(o.usoReal).forEach(sid=>{const s=supplyById(sid);if(s)s.stock=+(s.stock+o.usoReal[sid]).toFixed(3);});
+  }else{
+    plannedConsumption(o).forEach(p=>{ if(p.supply){p.supply.stock=+(p.supply.stock+p.qty).toFixed(3);} });
+  }
+  o.consumed=false;o.usoReal=null;
+}
+// Valor total del inventario (al costo)
+function inventoryValue(){return supplies().reduce((s,x)=>s+(x.stock*x.cost),0);}
+// Insumos en o bajo el mínimo
+function lowSupplies(){return supplies().filter(s=>s.stock<=(s.minStock||0));}
 
 //==================== AGREGACIÓN MENSUAL ====================
 // Ingreso/costo se reconocen cuando el pedido se ENTREGA (deliveredDate o date si ya está entregado)
@@ -542,19 +630,35 @@ function renderPed(){
 }
 async function advanceOrder(id,to){
   const o=state.orders.find(x=>x.id===id);if(!o)return;
+  const from=o.status;
   o.status=to;
+  if(to==='proceso'){
+    // Al iniciar confección, descontar materia prima estándar (si no se ha hecho)
+    if(!o.consumed) await consumeForOrder(o);
+  }
+  if(to==='pendiente'){
+    // Reabrir a pendiente: reponer lo consumido
+    if(o.consumed) await restoreForOrder(o);
+  }
   if(to==='entregado'){
     if(!o.deliveredDate) o.deliveredDate=today();
-    // Al entregar, el pedido se salda: registrar el pago restante con fecha de entrega
     if(!o.payments) o.payments=[];
     const bal=balanceOf(o);
     if(bal>0) o.payments.push({date:o.deliveredDate,amount:bal});
+    // Si venía de pendiente directo a entregado, asegurar descuento
+    if(!o.consumed) await consumeForOrder(o);
+    await persist();renderAll();
+    // Ofrecer registrar uso real (desperdicio) si hay consumo definido
+    if(plannedConsumption(o).length){ openUsoReal(o.id); return; }
+    toast('Pedido entregado y cobrado ✓');return;
   }
   if(to!=='entregado') o.deliveredDate=null;
   await persist();renderAll();
-  toast(to==='entregado'?'Pedido entregado y cobrado ✓':to==='proceso'?'En confección':'Actualizado');
+  toast(to==='proceso'?'En confección · inventario descontado':'Actualizado');
 }
 async function delOrder(id){
+  const o=state.orders.find(x=>x.id===id);
+  if(o&&o.consumed) await restoreForOrder(o); // devolver materia prima al inventario
   state.orders=state.orders.filter(o=>o.id!==id);
   await persist();renderAll();toast('Pedido eliminado');
 }
@@ -790,6 +894,146 @@ function openNew(){
     <button class="btn ghost" style="margin-top:10px" onclick="openExpense()">🧾 Gasto operativo</button>`);
 }
 
+//==================== INSUMOS (vista) ====================
+function renderSupplies(){
+  const vEl=document.getElementById('supValue');if(!vEl)return;
+  vEl.textContent=fmt(inventoryValue());
+  document.getElementById('supCount').textContent=supplies().length+(supplies().length===1?' insumo':' insumos');
+  const low=lowSupplies();
+  document.getElementById('supLow').textContent=low.length;
+  // alertas
+  document.getElementById('supAlerts').innerHTML=low.length
+    ? low.map(s=>`<div class="alert ${s.stock<=0?'':'warn'}"><span class="ic">${s.stock<=0?'⛔':'⚠️'}</span><div><b>${s.name}</b> — ${s.stock<=0?'agotado':'stock bajo'} (${(+s.stock).toLocaleString('es-CO')} ${s.unit}, mín ${s.minStock||0})</div></div>`).join('')
+    : '';
+  // lista
+  const box=document.getElementById('supList');
+  if(!supplies().length){box.innerHTML=`<div class="empty"><div class="big">▬</div>Sin insumos. Agrega tela, hilos, cremalleras...</div>`;}
+  else{
+    box.innerHTML=supplies().map(s=>{
+      const low=s.stock<=(s.minStock||0);
+      const colorTag=s.telaColor?teladHex(s.telaColor):s.hiloColor?bordHex(s.hiloColor):null;
+      return `<div class="prod" onclick="openSupply('${s.id}')">
+        <div class="top"><span class="name" style="font-size:13px;display:flex;align-items:center;gap:7px">
+          ${colorTag?`<span class="swatch" style="background:${colorTag}"></span>`:''}${s.name}</span>
+          <span class="badge" style="background:${low?'rgba(231,76,60,.2)':'rgba(46,204,113,.18)'};color:${low?'var(--red)':'var(--green)'}">${(+s.stock).toLocaleString('es-CO')} ${s.unit}</span></div>
+        <div style="display:flex;gap:16px;font-size:11px;color:var(--grey);margin-top:6px">
+          <span>${SUPPLY_LABEL(s.type)}</span><span>Costo ${fmt(s.cost)}/${s.unit}</span><span>Mín ${s.minStock||0}</span></div>
+      </div>`;
+    }).join('');
+  }
+  // desperdicio acumulado
+  const waste={};
+  state.orders.forEach(o=>{
+    if(o.status==='entregado'&&o.usoReal){
+      plannedConsumption(o).forEach(p=>{ if(!p.supply)return;
+        const real=o.usoReal[p.supply.id]; if(real==null)return;
+        const diff=real-p.qty; // positivo = usó más que estándar = desperdicio
+        if(!waste[p.supply.id])waste[p.supply.id]={name:p.supply.name,unit:p.supply.unit,diff:0,cost:p.supply.cost};
+        waste[p.supply.id].diff+=diff;
+      });
+    }
+  });
+  const wkeys=Object.keys(waste).filter(k=>Math.abs(waste[k].diff)>0.001);
+  document.getElementById('wasteBox').innerHTML=wkeys.length
+    ? (wkeys.map(k=>{const w=waste[k];return `<div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--panel2)">
+        <span>${w.name}</span><span class="mono ${w.diff>0?'neg':'pos'}">${w.diff>0?'+':''}${w.diff.toFixed(2)} ${w.unit} · ${fmt(w.diff*w.cost)}</span></div>`}).join('')
+      +`<div style="font-size:11px;color:var(--grey);margin-top:8px">Positivo (rojo) = usaste más que el estándar (desperdicio). Negativo (verde) = ahorraste.</div>`)
+    : `<div class="empty" style="padding:18px">Sin datos de desperdicio aún. Se calcula al registrar el uso real al entregar pedidos.</div>`;
+}
+function openSupply(id){
+  const s=id?supplyById(id):null;
+  const typeOpts=SUPPLY_TYPES.map(([v,l])=>`<option value="${v}" ${s&&s.type===v?'selected':''}>${l}</option>`).join('');
+  const telaOpts=tonosTela().map(([n])=>`<option value="${n}" ${s&&s.telaColor===n?'selected':''}>${n}</option>`).join('');
+  const hiloOpts=tonosBordado().map(([n])=>`<option value="${n}" ${s&&s.hiloColor===n?'selected':''}>${n}</option>`).join('');
+  showSheet(`<h2>${s?'Editar insumo':'Nuevo insumo'}</h2><p class="hint">Material de bodega. La tela y el hilo pueden enlazarse a un color para descontar del rollo correcto.</p>
+    <label class="f">Tipo</label><select id="suType" onchange="onSupplyType()">${typeOpts}</select>
+    <div id="suColorWrap" style="display:none">
+      <label class="f" id="suColorLbl">Color</label>
+      <select id="suColor"></select>
+    </div>
+    <label class="f">Nombre</label><input id="suName" type="text" value="${s?s.name.replace(/"/g,'&quot;'):''}" placeholder="Ej. Tela algodón Hueso">
+    <div class="two">
+      <div><label class="f">Stock actual</label><input id="suStock" type="number" inputmode="decimal" value="${s?s.stock:0}"></div>
+      <div><label class="f">Unidad</label><input id="suUnit" type="text" value="${s?s.unit:'m'}" placeholder="m, cono, und"></div>
+    </div>
+    <div class="two">
+      <div><label class="f">Costo por unidad</label><input id="suCost" type="number" inputmode="numeric" value="${s?s.cost:''}" placeholder="0"></div>
+      <div><label class="f">Stock mínimo</label><input id="suMin" type="number" inputmode="decimal" value="${s?s.minStock:0}"></div>
+    </div>
+    <button class="btn" onclick="saveSupply('${id||''}')">Guardar</button>
+    ${s?`<button class="btn red" style="margin-top:10px" onclick="delSupply('${id}')">Eliminar insumo</button>`:''}
+    <input type="hidden" id="suTelaSel" value="${s&&s.telaColor?s.telaColor:''}">
+    <input type="hidden" id="suHiloSel" value="${s&&s.hiloColor?s.hiloColor:''}">`);
+  // poblar selector de color según tipo
+  window._telaOpts=telaOpts;window._hiloOpts=hiloOpts;
+  onSupplyType(true);
+}
+function onSupplyType(initial){
+  const t=document.getElementById('suType').value;
+  const wrap=document.getElementById('suColorWrap');
+  const sel=document.getElementById('suColor');
+  const lbl=document.getElementById('suColorLbl');
+  if(t==='tela'){wrap.style.display='block';lbl.textContent='Color de tela';sel.innerHTML=window._telaOpts;
+    if(initial&&document.getElementById('suTelaSel').value)sel.value=document.getElementById('suTelaSel').value;}
+  else if(t==='hilo'){wrap.style.display='block';lbl.textContent='Color de hilo';sel.innerHTML=window._hiloOpts;
+    if(initial&&document.getElementById('suHiloSel').value)sel.value=document.getElementById('suHiloSel').value;}
+  else{wrap.style.display='none';}
+}
+async function saveSupply(id){
+  const name=document.getElementById('suName').value.trim();
+  if(!name){toast('Falta el nombre');return;}
+  const type=document.getElementById('suType').value;
+  const obj={name,type,
+    unit:document.getElementById('suUnit').value.trim()||'und',
+    stock:+document.getElementById('suStock').value||0,
+    cost:+document.getElementById('suCost').value||0,
+    minStock:+document.getElementById('suMin').value||0,
+    telaColor:type==='tela'?document.getElementById('suColor').value:null,
+    hiloColor:type==='hilo'?document.getElementById('suColor').value:null};
+  if(!Array.isArray(state.supplies))state.supplies=[];
+  if(id){Object.assign(supplyById(id),obj);}else{state.supplies.push({id:uid(),...obj});}
+  await persist();closeSheet();renderAll();toast('Insumo guardado');
+}
+async function delSupply(id){
+  state.supplies=supplies().filter(s=>s.id!==id);
+  await persist();closeSheet();renderAll();toast('Insumo eliminado');
+}
+// Registrar uso real al entregar (desperdicio)
+function openUsoReal(id){
+  const o=state.orders.find(x=>x.id===id);if(!o)return;
+  const planned=plannedConsumption(o);
+  if(!planned.length){toast('Pedido entregado ✓');return;}
+  showSheet(`<h2>Uso real de materia prima</h2><p class="hint">${o.collection} · ${o.model}. Ajusta lo que realmente usaste vs. lo estándar. La diferencia se registra como desperdicio.</p>
+    ${planned.map(p=>{
+      if(!p.supply)return `<div class="card" style="font-size:12px;color:var(--gold)">⚠️ Falta insumo "${p.templateName}" para el color de este pedido. Créalo en Insumos.</div>`;
+      const real=(o.usoReal&&o.usoReal[p.supply.id]!=null)?o.usoReal[p.supply.id]:p.qty;
+      return `<div style="margin-bottom:10px">
+        <label class="f" style="margin-top:0">${p.supply.name} <span style="color:var(--grey)">(estándar ${p.qty} ${p.supply.unit})</span></label>
+        <input type="number" inputmode="decimal" id="ur_${p.supply.id}" value="${real}" data-std="${p.qty}">
+      </div>`;
+    }).join('')}
+    <button class="btn" onclick="saveUsoReal('${id}')">Guardar uso real</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="skipUsoReal('${id}')">Usar el estándar (sin ajuste)</button>`);
+}
+async function saveUsoReal(id){
+  const o=state.orders.find(x=>x.id===id);if(!o)return;
+  const planned=plannedConsumption(o);
+  o.usoReal={};
+  planned.forEach(p=>{ if(!p.supply)return;
+    const el=document.getElementById('ur_'+p.supply.id); if(!el)return;
+    const real=+el.value||0; const std=p.qty;
+    o.usoReal[p.supply.id]=real;
+    // ajustar inventario por la diferencia (ya se descontó el estándar al entrar a proceso)
+    const diff=real-std; // si usó más, descontar extra; si menos, devolver
+    const s=supplyById(p.supply.id); if(s)s.stock=+(s.stock-diff).toFixed(3);
+  });
+  await persist();closeSheet();renderAll();toast('Uso real registrado ✓');
+}
+async function skipUsoReal(id){
+  const o=state.orders.find(x=>x.id===id);if(o)o.usoReal=null;
+  await persist();closeSheet();renderAll();toast('Pedido entregado ✓');
+}
+
 //==================== AJUSTES ====================
 function renderSettings(){
   // Precios y costos por COLECCIÓN + MODELO (edición inline)
@@ -814,6 +1058,33 @@ function renderSettings(){
   document.getElementById('setTela').innerHTML=tonoRows('tela');
   // Tonos de bordado
   document.getElementById('setBordado').innerHTML=tonoRows('bordado');
+  renderConsumo();
+}
+function renderConsumo(){
+  const el=document.getElementById('setConsumo');if(!el)return;
+  if(!supplies().length){el.innerHTML=`<div class="empty" style="padding:16px">Primero agrega insumos en la pestaña Insumos para definir cuánto consume cada modelo.</div>`;return;}
+  // Tela e hilo se consumen según el color del pedido: se define UN consumo por tipo (no por color).
+  // El resto de insumos (cremallera, etiqueta, etc.) se definen individualmente.
+  const telaSupplies=supplies().filter(s=>s.type==='tela');
+  const hiloSupplies=supplies().filter(s=>s.type==='hilo');
+  const otros=supplies().filter(s=>s.type!=='tela'&&s.type!=='hilo');
+  el.innerHTML=MODELS.map(m=>{
+    let rows='';
+    if(telaSupplies.length) rows+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <span style="flex:1;font-size:12px">Tela <span style="color:var(--grey)">(m · del color del pedido)</span></span>
+      <input type="number" inputmode="decimal" style="width:90px" value="${consumoStd(m,'__tela__')||''}" placeholder="0" onchange="saveConsumoField('${m.replace(/'/g,"\\'")}','__tela__',this.value)"></div>`;
+    if(hiloSupplies.length) rows+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <span style="flex:1;font-size:12px">Hilo bordado <span style="color:var(--grey)">(cono · del color del pedido)</span></span>
+      <input type="number" inputmode="decimal" style="width:90px" value="${consumoStd(m,'__hilo__')||''}" placeholder="0" onchange="saveConsumoField('${m.replace(/'/g,"\\'")}','__hilo__',this.value)"></div>`;
+    rows+=otros.map(s=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <span style="flex:1;font-size:12px">${s.name} <span style="color:var(--grey)">(${s.unit})</span></span>
+      <input type="number" inputmode="decimal" style="width:90px" value="${consumoStd(m,s.id)||''}" placeholder="0" onchange="saveConsumoField('${m.replace(/'/g,"\\'")}','${s.id}',this.value)"></div>`).join('');
+    return `<div class="prod"><div class="name" style="font-size:14px;font-weight:700;margin-bottom:10px">${m}</div>${rows}</div>`;
+  }).join('')
+  +`<div style="font-size:11px;color:var(--grey);margin-top:4px">La tela y el hilo se descuentan del color exacto que tenga el pedido. Define cuánto consume cada modelo.</div>`;
+}
+async function saveConsumoField(model,supplyId,v){
+  setConsumo(model,supplyId,v);await persist();
 }
 function tonoRows(kind){
   const arr=kind==='tela'?tonosTela():tonosBordado();
@@ -873,13 +1144,15 @@ function nav(v,btn){
   btn.classList.add('on');
   window.scrollTo(0,0);
 }
-function renderAll(){renderDash();renderPed();renderMov();renderRep();renderSettings();}
+function renderAll(){renderDash();renderPed();renderSupplies();renderMov();renderRep();renderSettings();}
 
 //==================== INIT ====================
 function migrateConfig(){
   if(!state.config||typeof state.config!=='object')state.config={};
   if(!Array.isArray(state.config.tonosTela)||!state.config.tonosTela.length)state.config.tonosTela=JSON.parse(JSON.stringify(DEFAULT_TONOS_TELA));
   if(!Array.isArray(state.config.tonosBordado)||!state.config.tonosBordado.length)state.config.tonosBordado=JSON.parse(JSON.stringify(DEFAULT_TONOS_BORDADO));
+  if(!Array.isArray(state.supplies))state.supplies=[];
+  if(!state.config.consumo||typeof state.config.consumo!=='object')state.config.consumo={};
   // Asegurar objetos de precios/costos
   if(!state.config.prices||typeof state.config.prices!=='object')state.config.prices={};
   if(!state.config.costs||typeof state.config.costs!=='object')state.config.costs={};
