@@ -453,13 +453,30 @@ let state={config:JSON.parse(JSON.stringify(defaultConfig)),orders:[],expenses:[
 // supply: {id,name,type,unit,stock,cost,minStock, telaColor?, hiloColor?}  (telaColor/hiloColor enlazan con tonos)
 // order: {id,date,collection,model,talla,tela,bordado,price,cost,status,client,phone,address,note,deliveredDate,
 //         payMode:'5050'|'contra'|'total', payments:[{date,amount}], consumed?:bool, usoReal?:{insumoId:cant}}
+// order (nuevo): items:[{product,collection,model,corte,talla,tela,bordado,price,cost,persoNombre}]
 // expense: {id,date,amount,category,note}
 const PAYMODES={'5050':'Anticipo 50/50','contra':'Contra entrega','total':'Pago total al pedir'};
 const ANTICIPO=0.5;
+//==================== LÍNEAS DE PEDIDO (multi-producto) ====================
+// Array de líneas de un pedido. Compatibilidad: envuelve pedidos planos viejos.
+function orderItems(o){
+  if(Array.isArray(o.items)&&o.items.length)return o.items;
+  return [{product:o.product,collection:o.collection,model:o.model,corte:o.corte,talla:o.talla,
+    tela:o.tela,bordado:o.bordado,price:o.price,cost:o.cost,persoNombre:o.persoNombre}];
+}
+const firstItem=o=>orderItems(o)[0]||{};
+const orderTotal=o=>orderItems(o).reduce((s,it)=>s+(+it.price||0),0);
+const orderCostTotal=o=>orderItems(o).reduce((s,it)=>s+(+it.cost||0),0);
+const itemLabel=it=>(it.product||'')+(it.collection?' · '+it.collection:'');
+function orderSummary(o){
+  const its=orderItems(o);
+  if(its.length===1)return itemLabel(its[0]);
+  return its.length+' prendas';
+}
 // total abonado de un pedido
 const paidOf=o=>(o.payments||[]).reduce((s,p)=>s+p.amount,0);
-// saldo por cobrar
-const balanceOf=o=>Math.max(0,Math.round(o.price-paidOf(o)));
+// saldo por cobrar (sobre el total del pedido)
+const balanceOf=o=>Math.max(0,Math.round(orderTotal(o)-paidOf(o)));
 
 let selMonth=new Date().toISOString().slice(0,7);
 let pedFilter='activos';
@@ -491,21 +508,21 @@ function setConsumo(model,supplyId,v){
   if(!state.config.consumo[model])state.config.consumo[model]={};
   state.config.consumo[model][supplyId]=+v||0;
 }
-// Lista de {supply, qty} que un pedido consumiría (consumo estándar), resolviendo color
-function plannedConsumption(o){
-  const out=[];const consumoKey=(PROD_CON_MODELO.includes(o.product)&&o.model)?o.model:o.product;const cons=state.config.consumo&&state.config.consumo[consumoKey];
+// Lista de {supply, qty} que UNA LÍNEA consumiría (consumo estándar), resolviendo color
+function lineConsumption(it){
+  const out=[];const consumoKey=(PROD_CON_MODELO.includes(it.product)&&it.model)?it.model:it.product;const cons=state.config.consumo&&state.config.consumo[consumoKey];
   if(!cons)return out;
-  // Tela: cantidad bajo clave __tela__, se descuenta del rollo del color del pedido
+  // Tela: cantidad bajo clave __tela__, se descuenta del rollo del color de la línea
   if(cons['__tela__']>0){
-    const real=supplies().find(s=>s.type==='tela'&&s.telaColor===o.tela);
+    const real=supplies().find(s=>s.type==='tela'&&s.telaColor===it.tela);
     if(real)out.push({supply:real,qty:cons['__tela__']});
-    else out.push({supply:null,qtyMissing:cons['__tela__'],templateName:'Tela '+(o.tela||'(sin color)')});
+    else out.push({supply:null,qtyMissing:cons['__tela__'],templateName:'Tela '+(it.tela||'(sin color)')});
   }
-  // Hilo: clave __hilo__, color del bordado del pedido
+  // Hilo: clave __hilo__, color del bordado de la línea
   if(cons['__hilo__']>0){
-    const real=supplies().find(s=>s.type==='hilo'&&s.hiloColor===o.bordado);
+    const real=supplies().find(s=>s.type==='hilo'&&s.hiloColor===it.bordado);
     if(real)out.push({supply:real,qty:cons['__hilo__']});
-    else out.push({supply:null,qtyMissing:cons['__hilo__'],templateName:'Hilo '+(o.bordado||'(sin color)')});
+    else out.push({supply:null,qtyMissing:cons['__hilo__'],templateName:'Hilo '+(it.bordado||'(sin color)')});
   }
   // Resto de insumos por id
   Object.keys(cons).forEach(sid=>{
@@ -516,6 +533,22 @@ function plannedConsumption(o){
     out.push({supply:sup,qty});
   });
   return out;
+}
+// Consumo de TODO el pedido: suma las líneas y agrupa por insumo real
+function plannedConsumption(o){
+  const acc=new Map();const missing=[];
+  orderItems(o).forEach(it=>{
+    lineConsumption(it).forEach(p=>{
+      if(p.supply){
+        const cur=acc.get(p.supply.id);
+        if(cur)cur.qty=+(cur.qty+p.qty).toFixed(3);
+        else acc.set(p.supply.id,{supply:p.supply,qty:p.qty});
+      }else{
+        missing.push(p);
+      }
+    });
+  });
+  return [...acc.values(),...missing];
 }
 
 // Descontar materia prima del inventario (al pasar a proceso)
@@ -547,7 +580,7 @@ function monthData(mk){
   let ingresos=0,costo=0,nEntr=0;
   state.orders.forEach(o=>{
     const rd=recognitionDate(o);
-    if(rd&&monthKey(rd)===mk){ingresos+=o.price;costo+=o.cost;nEntr++;}
+    if(rd&&monthKey(rd)===mk){ingresos+=orderTotal(o);costo+=orderCostTotal(o);nEntr++;}
   });
   let gastos=0,nGastos=0;
   state.expenses.forEach(e=>{if(monthKey(e.date)===mk){gastos+=e.amount;nGastos++;}});
@@ -561,7 +594,7 @@ function monthData(mk){
 const TAX=0.05;
 function backlog(){ // pedidos no entregados (pendiente+proceso)
   const act=state.orders.filter(o=>o.status!=='entregado');
-  return {count:act.length,value:act.reduce((s,o)=>s+o.price,0)};
+  return {count:act.length,value:act.reduce((s,o)=>s+orderTotal(o),0)};
 }
 function countStatus(st){return state.orders.filter(o=>o.status===st).length;}
 // CAJA: dinero efectivamente recibido en el mes (suma de abonos con fecha en el mes)
@@ -665,15 +698,23 @@ function renderPedTable(){
   const th=(t)=>`<th style="text-align:left;padding:8px 10px;font-size:10px;color:var(--grey);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;border-bottom:1px solid var(--line)">${t}</th>`;
   const td=(v,extra)=>`<td style="padding:8px 10px;font-size:12px;white-space:nowrap;border-bottom:1px solid var(--panel2);${extra||''}">${v==null||v===''?'—':v}</td>`;
   const estBadge=o=>`<span class="st ${STATUS_CLASS[o.status]}">${STATUS_LABEL[o.status]}</span>`;
-  box.innerHTML=`<table style="border-collapse:collapse;min-width:900px;width:100%">
-    <thead><tr>${th('Fecha')}${th('Cliente')}${th('CC/NIT')}${th('Producto')}${th('Colección')}${th('Modelo')}${th('Talla')}${th('Color')}${th('Bordado')}${th('Valor')}${th('Abono')}${th('Pendiente')}${th('Medio')}${th('Estado')}${th('PDF')}</tr></thead>
-    <tbody>${list.map(o=>`<tr>
-      ${td(o.date)}${td((o.client||'')+(o.phone?'<br><span style=\"color:var(--grey);font-size:10px\">'+o.phone+'</span>':''))}${td(o.cedula)}
-      ${td('<b>'+(o.product||'')+'</b>')}${td(o.collection)}${td(PROD_CON_MODELO.includes(o.product)?(o.model||'—'):'—')}${td(o.talla)}${td(o.tela)}${td(o.bordado)}
-      ${td(fmt(o.price),'color:var(--teal);font-weight:600')}${td(fmt(paidOf(o)),'color:var(--green)')}${td(fmt(balanceOf(o)),balanceOf(o)>0?'color:var(--gold);font-weight:600':'color:var(--grey)')}
-      ${td(o.medioPago)}${td(estBadge(o))}
-      ${td(`<button onclick="generarOrdenPDF('${o.id}')" style="background:var(--accent);border:1px solid var(--teal);color:var(--teal);border-radius:7px;padding:4px 9px;font-size:11px;cursor:pointer">📄</button>`)}
-    </tr>`).join('')}</tbody></table>`;
+  const tdr=(v,rs,extra)=>`<td rowspan="${rs}" style="padding:8px 10px;font-size:12px;white-space:nowrap;border-bottom:1px solid var(--panel2);vertical-align:top;${extra||''}">${v==null||v===''?'—':v}</td>`;
+  box.innerHTML=`<table style="border-collapse:collapse;min-width:960px;width:100%">
+    <thead><tr>${th('Fecha')}${th('Cliente')}${th('CC/NIT')}${th('Producto')}${th('Colección')}${th('Modelo')}${th('Talla')}${th('Color')}${th('Bordado')}${th('Precio')}${th('Total')}${th('Abono')}${th('Pendiente')}${th('Medio')}${th('Estado')}${th('PDF')}</tr></thead>
+    <tbody>${list.map(o=>{
+      const its=orderItems(o);const n=its.length;
+      return its.map((it,i)=>{
+        const first=i===0;
+        let r=`<tr>`;
+        if(first){r+=tdr(o.date,n)+tdr((o.client||'')+(o.phone?'<br><span style="color:var(--grey);font-size:10px">'+o.phone+'</span>':''),n)+tdr(o.cedula,n);}
+        r+=td('<b>'+(it.product||'')+'</b>')+td(it.collection)+td(PROD_CON_MODELO.includes(it.product)?(it.model||'—'):'—')+td(it.talla)+td(it.tela)+td(it.bordado);
+        r+=td(fmt(it.price),'color:var(--teal)');
+        if(first){
+          r+=tdr(fmt(orderTotal(o)),n,'color:var(--teal);font-weight:700')+tdr(fmt(paidOf(o)),n,'color:var(--green)')+tdr(fmt(balanceOf(o)),n,balanceOf(o)>0?'color:var(--gold);font-weight:600':'color:var(--grey)')+tdr(o.medioPago,n)+tdr(estBadge(o),n)+tdr(`<button onclick="generarOrdenPDF('${o.id}')" style="background:var(--accent);border:1px solid var(--teal);color:var(--teal);border-radius:7px;padding:4px 9px;font-size:11px;cursor:pointer">📄</button>`,n);
+        }
+        r+=`</tr>`;return r;
+      }).join('');
+    }).join('')}</tbody></table>`;
 }
 function renderPed(){
   if(pedView==='table'){renderPedTable();return;}
@@ -681,29 +722,43 @@ function renderPed(){
   const box=document.getElementById('pedList');
   if(!list.length){box.innerHTML=`<div class="empty"><div class="big">▤</div>Sin pedidos en esta vista.<br>Toca + para crear uno.</div>`;return;}
   box.innerHTML=list.map(o=>{
-    const isCustom=o.collection===CUSTOM_COL;
     const next={pendiente:['proceso','▶ Iniciar'],proceso:['entregado','✓ Entregar'],entregado:[null,null]};
     const[ns,nl]=next[o.status];
-    const titulo=(o.product||'Hoodie')+' · '+(o.collection||'');
+    const its=orderItems(o);
+    const titulo=its.length===1?itemLabel(its[0]):(its.length+' prendas');
+    const lineHtml=its.map(it=>{
+      const isCustom=it.collection===CUSTOM_COL;
+      const meta=[
+        (PROD_CON_MODELO.includes(it.product)&&it.model)?'<b>'+it.model+'</b>':'',
+        it.talla?'Talla '+it.talla:'',
+        'Tela: <b>'+(it.tela||'—')+'</b>',
+        'Bordado: <b>'+(it.bordado||'—')+'</b>',
+        it.persoNombre?'✎ con nombre':''
+      ].filter(Boolean).join(' · ');
+      return `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--panel2)">
+        <div class="spec" style="flex:1"><b style="color:var(--txt)">${it.product||''}</b> · ${it.collection||''}${isCustom?' ✦':''}<br>${meta}</div>
+        <div class="mono tl" style="font-size:13px;white-space:nowrap">${fmt(it.price)}</div>
+      </div>`;
+    }).join('');
     return `<div class="order">
       <div class="top">
-        <div><div class="col">${titulo}${isCustom?' ✦':''}</div>
-          <div class="spec">${(PROD_CON_MODELO.includes(o.product)&&o.model)?'<b>'+o.model+'</b>':''}${o.talla?(o.model?' · ':'')+'Talla '+o.talla:''}${o.client?' · '+o.client:''}<br>
-          ${o.cedula?'CC/NIT: '+o.cedula+'<br>':''}
-          Tela: <b>${o.tela||'—'}</b> · Bordado: <b>${o.bordado||'—'}</b>${o.note?'<br>'+o.note:''}<br>
+        <div><div class="col">${titulo}</div>
+          <div class="spec">${o.client?'<b>'+o.client+'</b>':''}${o.cedula?' · CC/NIT: '+o.cedula:''}${o.client||o.cedula?'<br>':''}
           ${o.phone?'📞 '+o.phone+'  ':''}${o.address?'📍 '+o.address:''}${(o.phone||o.address)?'<br>':''}
+          ${o.vendedor?'Vendedor: '+o.vendedor+'<br>':''}${o.note?o.note+'<br>':''}
           <span style="color:var(--grey)">${o.date}${o.status==='entregado'&&o.deliveredDate?' → entregado '+o.deliveredDate:''}</span></div>
         </div>
         <span class="st ${STATUS_CLASS[o.status]}">${STATUS_LABEL[o.status]}</span>
       </div>
+      <div style="margin-top:6px">${lineHtml}</div>
       <div class="spec" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span class="st" style="background:var(--panel2);color:var(--grey);border:1px solid var(--line)">${PAYMODES[o.payMode||'5050']}</span>
         ${o.medioPago?`<span class="st" style="background:var(--panel2);color:var(--grey);border:1px solid var(--line)">${o.medioPago}</span>`:''}
-        <span style="color:var(--grey)">Abonado <b class="pos">${fmt(paidOf(o))}</b> de ${fmt(o.price)}</span>
+        <span style="color:var(--grey)">Abonado <b class="pos">${fmt(paidOf(o))}</b> de ${fmt(orderTotal(o))}</span>
         ${balanceOf(o)>0?`<span style="color:var(--gold)">· falta <b>${fmt(balanceOf(o))}</b></span>`:`<span class="pos">· pagado ✓</span>`}
       </div>
       <div class="ftr">
-        <div><span class="price tl mono">${fmt(o.price)}</span> <span style="font-size:10px;color:var(--grey)">· costo ${fmtK(o.cost)}</span></div>
+        <div><span class="price tl mono">${fmt(orderTotal(o))}</span> <span style="font-size:10px;color:var(--grey)">· costo ${fmtK(orderCostTotal(o))}</span></div>
         <div class="acts">
           <button class="go" onclick="generarOrdenPDF('${o.id}')">📄 PDF</button>
           ${ns?`<button class="go" onclick="advanceOrder('${o.id}','${ns}')">${nl}</button>`:`<button onclick="advanceOrder('${o.id}','proceso')">↩ Reabrir</button>`}
@@ -752,8 +807,8 @@ async function delOrder(id){
 function openPayment(id){
   const o=state.orders.find(x=>x.id===id);if(!o)return;
   const bal=balanceOf(o);
-  showSheet(`<h2>Registrar pago</h2><p class="hint">${(o.product||'')} · ${o.collection}${o.client?' · '+o.client:''}</p>
-    <div class="card" style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--grey);font-size:13px">Precio total</span><b class="mono">${fmt(o.price)}</b></div>
+  showSheet(`<h2>Registrar pago</h2><p class="hint">${orderSummary(o)}${o.client?' · '+o.client:''}</p>
+    <div class="card" style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--grey);font-size:13px">Total del pedido</span><b class="mono">${fmt(orderTotal(o))}</b></div>
     <div class="card" style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--grey);font-size:13px">Ya abonado</span><b class="mono pos">${fmt(paidOf(o))}</b></div>
     <div class="card" style="display:flex;justify-content:space-between"><span style="color:var(--grey);font-size:13px">Saldo por cobrar</span><b class="mono acc">${fmt(bal)}</b></div>
     <label class="f">Monto recibido</label><input id="payAmt" type="number" inputmode="numeric" value="${bal>0?bal:''}">
@@ -792,8 +847,8 @@ function renderMov(){
   box.innerHTML=rows.map(r=>{
     if(r.type==='venta'){const o=r.o;
       return `<div class="item"><div class="ic">🧥</div>
-        <div class="mid"><div class="t">${(o.product||'')} · ${o.collection}</div><div class="d">Entregado · ${r.date}</div></div>
-        <div class="amt pos mono">+${fmt(o.price)}</div></div>`;
+        <div class="mid"><div class="t">${orderSummary(o)}${o.client?' · '+o.client:''}</div><div class="d">Entregado · ${r.date}</div></div>
+        <div class="amt pos mono">+${fmt(orderTotal(o))}</div></div>`;
     }else{const e=r.e;
       return `<div class="item"><div class="ic">🧾</div>
         <div class="mid"><div class="t">${e.category}</div><div class="d">${e.note||'—'} · ${r.date}</div></div>
@@ -820,7 +875,7 @@ function renderRep(){
 
   // pedidos por colección
   const byColl={};COLECCIONES.forEach(c=>byColl[c]=0);
-  state.orders.forEach(o=>{byColl[o.collection]=(byColl[o.collection]||0)+1;});
+  state.orders.forEach(o=>orderItems(o).forEach(it=>{byColl[it.collection]=(byColl[it.collection]||0)+1;}));
   const maxC=Math.max(1,...Object.values(byColl));
   document.getElementById('collStats').innerHTML=COLECCIONES.map(c=>`
     <div class="prod"><div class="top"><span class="name" style="font-size:13px">${c===CUSTOM_COL?'✦ ':''}${c}</span>
@@ -831,7 +886,7 @@ function renderRep(){
   const contribProd=p=>{const gA=PRECIOS_OFICIALES[p]?PRECIOS_OFICIALES[p].A:0;const co=(state.config.costs&&state.config.costs[pkey(p,'A')])||0;return gA-co;};
   const maxM=Math.max(1,...PRODUCTS.map(p=>contribProd(p)));
   document.getElementById('contribList').innerHTML=PRODUCTS.map(p=>{
-    const c=contribProd(p),units=state.orders.filter(o=>o.product===p&&o.status==='entregado').length;
+    const c=contribProd(p),units=state.orders.filter(o=>o.status==='entregado').reduce((s,o)=>s+orderItems(o).filter(it=>it.product===p).length,0);
     return `<div class="prod"><div class="top"><span class="name" style="font-size:13px">${p}</span>
       <span class="mono pos" style="font-weight:700">${fmt(c)}</span></div>
     <div class="bar"><i style="width:${Math.max(0,c)/maxM*100}%;background:var(--green)"></i></div>
@@ -868,42 +923,79 @@ function closeSheet(){sheet.classList.remove('show');scrim.classList.remove('sho
 
 // estado temporal del formulario de pedido
 let draft={};
+// Crea una línea de producto en blanco
+function nuevaLinea(){return {product:PRODUCTS[0],collection:COLECCIONES[0],model:MODELS[0],corte:CORTES[0],talla:'M',tela:'',bordado:'',persoNombre:false,
+  price:precioOficial(PRODUCTS[0],COLECCIONES[0]),cost:0};}
 function openNewOrder(id){
   const o=id?state.orders.find(x=>x.id===id):null;
-  draft=o?{...o}:{product:PRODUCTS[0],collection:COLECCIONES[0],model:MODELS[0],corte:CORTES[0],talla:'M',tela:'',bordado:'',status:'pendiente',date:today(),client:'',cedula:'',phone:'',address:'',medioPago:MEDIOS_PAGO[0],vendedor:'',persoNombre:false,note:'',foto:null,
-    price:precioOficial(PRODUCTS[0],COLECCIONES[0]),cost:0,payMode:'5050',payments:[]};
+  if(o){
+    draft={...o,items:orderItems(o).map(it=>({...it}))};
+  }else{
+    draft={status:'pendiente',date:today(),client:'',cedula:'',phone:'',address:'',medioPago:MEDIOS_PAGO[0],vendedor:'',note:'',foto:null,
+      payMode:'5050',payments:[],items:[]};
+  }
   draft._editId=id||null;
+  draft._line=nuevaLinea();   // línea que se está editando/agregando
+  draft._lineIdx=null;        // índice si se edita una existente, null si es nueva
   renderOrderSheet();
 }
+// ¿Cuál es el precio total de todas las líneas ya agregadas + la que se edita si es nueva?
+function draftTotal(){
+  let t=(draft.items||[]).reduce((s,it)=>s+(+it.price||0),0);
+  return t;
+}
 function renderOrderSheet(){
-  const conModelo=PROD_CON_MODELO.includes(draft.product);
-  const isCustom=draft.collection===CUSTOM_COL;
-  const precioAuto=usaMatrizPrecio(draft.product,draft.collection);
-  const prodChips=PRODUCTS.map(p=>`<button class="chip ${draft.product===p?'on':''}" onclick="pickProduct('${p.replace(/'/g,"\\'")}')">${p}</button>`).join('');
-  const collCards=COLECCIONES.map(c=>`<div class="collcard ${draft.collection===c?'on':''}" onclick="pickColl('${c.replace(/'/g,"\\'")}')">
+  const L=draft._line;
+  const conModelo=PROD_CON_MODELO.includes(L.product);
+  const precioAuto=usaMatrizPrecio(L.product,L.collection);
+  const prodChips=PRODUCTS.map(p=>`<button class="chip ${L.product===p?'on':''}" onclick="pickProduct('${p.replace(/'/g,"\\'")}')">${p}</button>`).join('');
+  const collCards=COLECCIONES.map(c=>`<div class="collcard ${L.collection===c?'on':''}" onclick="pickColl('${c.replace(/'/g,"\\'")}')">
     <div class="cn">${c===CUSTOM_COL?'✦':''} ${c}</div>
     <div class="cp">${c===CUSTOM_COL?'a definir':'Grupo '+grupoDe(c)}</div></div>`).join('');
-  const modelChips=MODELS.map(m=>`<button class="chip ${draft.model===m?'on':''}" onclick="pickModel('${m}')">${m}</button>`).join('');
-  const corteChips=CORTES.map(c=>`<button class="chip ${draft.corte===c?'on':''}" onclick="draft.corte='${c}';renderOrderSheet()">${c}</button>`).join('');
-  const telaChips=tonosTela().map(([n,h])=>`<button class="chip ${draft.tela===n?'on':''}" onclick="pickTela('${n.replace(/'/g,"\\'")}')"><span class="swatch" style="background:${h}"></span>${n}</button>`).join('');
-  const bordChips=tonosBordado().map(([n,h])=>`<button class="chip ${draft.bordado===n?'on':''}" onclick="pickBord('${n.replace(/'/g,"\\'")}')"><span class="swatch" style="background:${h}"></span>${n}</button>`).join('');
+  const modelChips=MODELS.map(m=>`<button class="chip ${L.model===m?'on':''}" onclick="pickModel('${m}')">${m}</button>`).join('');
+  const corteChips=CORTES.map(c=>`<button class="chip ${L.corte===c?'on':''}" onclick="draft._line.corte='${c}';renderOrderSheet()">${c}</button>`).join('');
+  const telaChips=tonosTela().map(([n,h])=>`<button class="chip ${L.tela===n?'on':''}" onclick="pickTela('${n.replace(/'/g,"\\'")}')"><span class="swatch" style="background:${h}"></span>${n}</button>`).join('');
+  const bordChips=tonosBordado().map(([n,h])=>`<button class="chip ${L.bordado===n?'on':''}" onclick="pickBord('${n.replace(/'/g,"\\'")}')"><span class="swatch" style="background:${h}"></span>${n}</button>`).join('');
   const medioOpts=MEDIOS_PAGO.map(m=>`<option value="${m}" ${draft.medioPago===m?'selected':''}>${m}</option>`).join('');
   const vendOpts='<option value="">— Sin asignar —</option>'+vendedores().map(v=>`<option value="${v.replace(/"/g,'&quot;')}" ${draft.vendedor===v?'selected':''}>${v}</option>`).join('');
-  showSheet(`<h2>${draft._editId?'Editar pedido':'Nuevo pedido'}</h2><p class="hint">Solicitud de pedido. Escoge producto, colección y detalles.</p>
+  // Lista de líneas ya agregadas al pedido
+  const itemsHtml=(draft.items||[]).length?draft.items.map((it,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px;border:1px solid ${draft._lineIdx===i?'var(--teal)':'var(--line)'};border-radius:9px;margin-bottom:6px;background:var(--panel2)">
+      <div class="spec" style="flex:1"><b style="color:var(--txt)">${it.product}</b> · ${it.collection}${it.collection===CUSTOM_COL?' ✦':''}<br>
+        ${(PROD_CON_MODELO.includes(it.product)&&it.model)?it.model+' · ':''}${it.talla?'Talla '+it.talla+' · ':''}${it.tela||'—'} / ${it.bordado||'—'}${it.persoNombre?' · ✎ nombre':''}
+        <span class="tl mono" style="margin-left:4px">${fmt(it.price)}</span></div>
+      <div style="display:flex;gap:4px">
+        <button onclick="editLinea(${i})" style="background:var(--panel);border:1px solid var(--line);color:var(--teal);border-radius:7px;padding:4px 8px;font-size:12px;cursor:pointer">✎</button>
+        <button onclick="delLinea(${i})" style="background:var(--panel);border:1px solid var(--line);color:var(--red);border-radius:7px;padding:4px 8px;font-size:12px;cursor:pointer">×</button>
+      </div>
+    </div>`).join(''):'<div style="font-size:12px;color:var(--grey);padding:6px 0">Aún no has agregado prendas. Configura la primera abajo y toca «Agregar al pedido».</div>';
+  const editando=draft._lineIdx!==null;
+  showSheet(`<h2>${draft._editId?'Editar pedido':'Nuevo pedido'}</h2><p class="hint">Un pedido puede tener varias prendas (iguales o distintas). Agrega cada una y luego completa los datos del cliente.</p>
+
+    <label class="f">Prendas del pedido ${(draft.items||[]).length?'('+draft.items.length+')':''}</label>
+    ${itemsHtml}
+    ${(draft.items||[]).length?`<div style="display:flex;justify-content:space-between;padding:6px 2px;border-top:1px solid var(--line);font-weight:700"><span>Total del pedido</span><span class="tl mono">${fmt(draftTotal())}</span></div>`:''}
+
+    <div class="card" style="margin-top:10px;padding:12px;border:1px dashed var(--teal)">
+    <div style="font-size:13px;font-weight:700;color:var(--teal);margin-bottom:6px">${editando?'✎ Editando prenda '+(draft._lineIdx+1):'➕ Nueva prenda'}</div>
     <label class="f">Producto</label><div style="display:flex;flex-wrap:wrap">${prodChips}</div>
     <label class="f">Colección / bordado</label><div class="collgrid">${collCards}</div>
-    ${BORDADO_IMGS[draft.collection]?`<div style="text-align:center;margin-top:8px"><img src="${BORDADO_IMGS[draft.collection]}" style="height:90px;border-radius:8px;border:1px solid var(--line)"><div style="font-size:10px;color:var(--grey);margin-top:4px">Bordado ${draft.collection}</div></div>`:''}
+    ${BORDADO_IMGS[L.collection]?`<div style="text-align:center;margin-top:8px"><img src="${BORDADO_IMGS[L.collection]}" style="height:90px;border-radius:8px;border:1px solid var(--line)"><div style="font-size:10px;color:var(--grey);margin-top:4px">Bordado ${L.collection}</div></div>`:''}
     ${conModelo?`<label class="f">Modelo</label><div style="display:flex;flex-wrap:wrap">${modelChips}</div>
     <label class="f">Corte</label><div style="display:flex;flex-wrap:wrap">${corteChips}</div>
-    <label class="f">Talla</label><div style="display:flex;flex-wrap:wrap">${TALLAS.map(t=>`<button class="chip ${draft.talla===t?'on':''}" onclick="draft.talla='${t}';renderOrderSheet()" style="min-width:48px;justify-content:center">${t}</button>`).join('')}</div>`:''}
+    <label class="f">Talla</label><div style="display:flex;flex-wrap:wrap">${TALLAS.map(t=>`<button class="chip ${L.talla===t?'on':''}" onclick="draft._line.talla='${t}';renderOrderSheet()" style="min-width:48px;justify-content:center">${t}</button>`).join('')}</div>`:''}
     <label class="f">Color / tono de tela</label><div style="display:flex;flex-wrap:wrap">${telaChips}
-      <input id="telaOther" placeholder="Otro tono..." value="${tonosTela().some(t=>t[0]===draft.tela)?'':(draft.tela||'')}" oninput="draft.tela=this.value;" style="width:auto;flex:1;min-width:120px;margin-bottom:6px"></div>
+      <input id="telaOther" placeholder="Otro tono..." value="${tonosTela().some(t=>t[0]===L.tela)?'':(L.tela||'')}" oninput="draft._line.tela=this.value;" style="width:auto;flex:1;min-width:120px;margin-bottom:6px"></div>
     <label class="f">Tono de bordado</label><div style="display:flex;flex-wrap:wrap">${bordChips}
-      <input id="bordOther" placeholder="Otro tono..." value="${tonosBordado().some(t=>t[0]===draft.bordado)?'':(draft.bordado||'')}" oninput="draft.bordado=this.value;" style="width:auto;flex:1;min-width:120px;margin-bottom:6px"></div>
-    <label class="f"><input type="checkbox" ${draft.persoNombre?'checked':''} onchange="draft.persoNombre=this.checked;syncPrice();renderOrderSheet()" style="width:auto;margin-right:6px">Personalización con nombre (+${fmt(PERSONALIZACION_NOMBRE)})</label>
-    <div class="two"><div><label class="f">Precio del producto</label><input id="oPrice" type="number" inputmode="numeric" value="${draft.price||''}" oninput="draft.price=+this.value" placeholder="0"></div>
-      <div><label class="f">Costo (opcional)</label><input id="oCost" type="number" inputmode="numeric" value="${draft.cost||''}" oninput="draft.cost=+this.value" placeholder="0"></div></div>
-    ${precioAuto?`<div style="font-size:11px;color:var(--grey);margin-top:6px">Precio automático: ${draft.product} · Grupo ${grupoDe(draft.collection)} = <b class="tl">${fmt(precioOficial(draft.product,draft.collection))}</b>${draft.persoNombre?' + '+fmt(PERSONALIZACION_NOMBRE)+' nombre':''}. Puedes ajustarlo.</div>`:`<div style="font-size:11px;color:var(--grey);margin-top:6px">Colección personalizada: define el precio a mano.</div>`}
+      <input id="bordOther" placeholder="Otro tono..." value="${tonosBordado().some(t=>t[0]===L.bordado)?'':(L.bordado||'')}" oninput="draft._line.bordado=this.value;" style="width:auto;flex:1;min-width:120px;margin-bottom:6px"></div>
+    <label class="f"><input type="checkbox" ${L.persoNombre?'checked':''} onchange="draft._line.persoNombre=this.checked;syncPrice();renderOrderSheet()" style="width:auto;margin-right:6px">Personalización con nombre (+${fmt(PERSONALIZACION_NOMBRE)})</label>
+    <div class="two"><div><label class="f">Precio de la prenda</label><input id="oPrice" type="number" inputmode="numeric" value="${L.price||''}" oninput="draft._line.price=+this.value" placeholder="0"></div>
+      <div><label class="f">Costo (opcional)</label><input id="oCost" type="number" inputmode="numeric" value="${L.cost||''}" oninput="draft._line.cost=+this.value" placeholder="0"></div></div>
+    ${precioAuto?`<div style="font-size:11px;color:var(--grey);margin-top:6px">Precio automático: ${L.product} · Grupo ${grupoDe(L.collection)} = <b class="tl">${fmt(precioOficial(L.product,L.collection))}</b>${L.persoNombre?' + '+fmt(PERSONALIZACION_NOMBRE)+' nombre':''}. Puedes ajustarlo.</div>`:`<div style="font-size:11px;color:var(--grey);margin-top:6px">Colección personalizada: define el precio a mano.</div>`}
+    <button class="btn" style="margin-top:10px" onclick="commitLinea()">${editando?'✓ Guardar prenda':'➕ Agregar al pedido'}</button>
+    ${editando?`<button class="btn ghost" style="margin-top:8px" onclick="cancelLinea()">Cancelar edición</button>`:''}
+    </div>
+
     <label class="f">Datos del cliente</label>
     <input id="oClient" type="text" value="${(draft.client||'').replace(/"/g,'&quot;')}" oninput="draft.client=this.value" placeholder="Nombre y apellido" style="margin-bottom:8px">
     <input id="oCedula" type="text" inputmode="numeric" value="${(draft.cedula||'').replace(/"/g,'&quot;')}" oninput="draft.cedula=this.value" placeholder="Cédula o NIT" style="margin-bottom:8px">
@@ -913,7 +1005,7 @@ function renderOrderSheet(){
     <div id="fotoWrap">${draft.foto?`<img src="${draft.foto}" style="width:100%;max-height:180px;object-fit:contain;border-radius:10px;border:1px solid var(--line);margin-bottom:8px">`:''}</div>
     <input type="file" id="oFoto" accept="image/*" onchange="loadFoto(event)" style="font-size:13px">
     ${draft.foto?`<button class="btn ghost" style="margin-top:6px" onclick="draft.foto=null;renderOrderSheet()">Quitar foto</button>`:''}
-    <label class="f">Estado</label><div class="seg">
+    <label class="f">Estado del pedido</label><div class="seg">
       <button class="${draft.status==='pendiente'?'on':''}" onclick="draft.status='pendiente';renderOrderSheet()">Pendiente</button>
       <button class="${draft.status==='proceso'?'on':''}" onclick="draft.status='proceso';renderOrderSheet()">En proceso</button>
       <button class="${draft.status==='entregado'?'on':''}" onclick="draft.status='entregado';renderOrderSheet()">Entregado</button></div>
@@ -921,29 +1013,57 @@ function renderOrderSheet(){
     <label class="f">Medio de pago</label><select id="oMedio" onchange="draft.medioPago=this.value">${medioOpts}</select>
     <label class="f">Vendedor</label><select id="oVend" onchange="draft.vendedor=this.value">${vendOpts}</select>
     ${vendedores().length?'':'<div style="font-size:11px;color:var(--grey);margin-top:4px">Agrega vendedores en Ajustes para poder elegirlos.</div>'}
-    <label class="f">Modalidad de pago</label><div class="seg" style="flex-wrap:wrap;gap:6px">
+    <label class="f">Modalidad de pago (sobre el total)</label><div class="seg" style="flex-wrap:wrap;gap:6px">
       <button class="${draft.payMode==='5050'?'on':''}" onclick="draft.payMode='5050';renderOrderSheet()" style="flex:1 1 100%">Anticipo 50/50</button>
       <button class="${draft.payMode==='contra'?'on':''}" onclick="draft.payMode='contra';renderOrderSheet()">Contra entrega</button>
       <button class="${draft.payMode==='total'?'on':''}" onclick="draft.payMode='total';renderOrderSheet()">Total al pedir</button></div>
     ${draft._editId?'':`<div class="card" style="margin-top:10px;font-size:11px;color:var(--grey);line-height:1.5">${
-      draft.payMode==='5050'?`Se registrará un anticipo de <b class="tl">${fmt(Math.round((draft.price||0)*ANTICIPO))}</b> hoy. El saldo lo cobras al entregar.`
-      :draft.payMode==='total'?`Se registrará el pago completo de <b class="tl">${fmt(draft.price||0)}</b> hoy.`
-      :`No se registra abono ahora. Cobras <b class="tl">${fmt(draft.price||0)}</b> al entregar.`}</div>`}
+      draft.payMode==='5050'?`Se registrará un anticipo de <b class="tl">${fmt(Math.round(draftTotal()*ANTICIPO))}</b> (50% del total). El saldo lo cobras al entregar.`
+      :draft.payMode==='total'?`Se registrará el pago completo de <b class="tl">${fmt(draftTotal())}</b> hoy.`
+      :`No se registra abono ahora. Cobras <b class="tl">${fmt(draftTotal())}</b> al entregar.`}</div>`}
     <label class="f">Observaciones</label>
     <input id="oNote" type="text" value="${(draft.note||'').replace(/"/g,'&quot;')}" oninput="draft.note=this.value" placeholder="Detalles del personalizado, tiempo de entrega...">
     <button class="btn" onclick="saveOrder()">${draft._editId?'Guardar cambios':'Crear pedido'}</button>
     <button class="btn ghost" style="margin-top:10px" onclick="saveOrder(true)">Guardar y generar orden PDF</button>
     ${draft._editId?`<button class="btn red" style="margin-top:10px" onclick="delOrder('${draft._editId}');closeSheet()">Eliminar pedido</button>`:''}`);
 }
-function pickProduct(p){draft.product=p;if(!PROD_CON_MODELO.includes(p)){draft.model='';}else if(!draft.model)draft.model=MODELS[0];syncPrice();renderOrderSheet();}
-function pickColl(c){draft.collection=c;syncPrice();renderOrderSheet();}
-function pickModel(m){draft.model=m;renderOrderSheet();}
+// ==== manejo de líneas ====
+function captureLineOthers(){
+  const telaOther=document.getElementById('telaOther');if(telaOther&&telaOther.value.trim())draft._line.tela=telaOther.value.trim();
+  const bordOther=document.getElementById('bordOther');if(bordOther&&bordOther.value.trim())draft._line.bordado=bordOther.value.trim();
+}
+function commitLinea(){
+  captureLineOthers();
+  const L=draft._line;
+  L.price=+L.price||0;L.cost=+L.cost||0;
+  if(!L.price||L.price<=0){toast('Escribe el precio de la prenda');return;}
+  if(!Array.isArray(draft.items))draft.items=[];
+  if(draft._lineIdx!==null){draft.items[draft._lineIdx]={...L};}
+  else{draft.items.push({...L});}
+  draft._line=nuevaLinea();draft._lineIdx=null;
+  renderOrderSheet();
+}
+function editLinea(i){
+  captureLineOthers();
+  draft._line={...draft.items[i]};draft._lineIdx=i;
+  renderOrderSheet();
+}
+function cancelLinea(){draft._line=nuevaLinea();draft._lineIdx=null;renderOrderSheet();}
+function delLinea(i){
+  draft.items.splice(i,1);
+  if(draft._lineIdx===i){draft._line=nuevaLinea();draft._lineIdx=null;}
+  else if(draft._lineIdx!==null&&draft._lineIdx>i){draft._lineIdx--;}
+  renderOrderSheet();
+}
+function pickProduct(p){draft._line.product=p;if(!PROD_CON_MODELO.includes(p)){draft._line.model='';}else if(!draft._line.model)draft._line.model=MODELS[0];syncPrice();renderOrderSheet();}
+function pickColl(c){draft._line.collection=c;syncPrice();renderOrderSheet();}
+function pickModel(m){draft._line.model=m;renderOrderSheet();}
 function syncPrice(){
-  // Autocompleta precio oficial si aplica (no personalizado)
-  if(usaMatrizPrecio(draft.product,draft.collection)){
-    let p=precioOficial(draft.product,draft.collection);
-    if(draft.persoNombre)p+=PERSONALIZACION_NOMBRE;
-    draft.price=p;
+  // Autocompleta precio oficial de la línea si aplica (no personalizado)
+  if(usaMatrizPrecio(draft._line.product,draft._line.collection)){
+    let p=precioOficial(draft._line.product,draft._line.collection);
+    if(draft._line.persoNombre)p+=PERSONALIZACION_NOMBRE;
+    draft._line.price=p;
   }
 }
 function loadFoto(e){
@@ -964,42 +1084,55 @@ function loadFoto(e){
   };
   r.readAsDataURL(f);
 }
-function pickTela(n){draft.tela=n;renderOrderSheet();}
-function pickBord(n){draft.bordado=n;renderOrderSheet();}
+function pickTela(n){draft._line.tela=n;renderOrderSheet();}
+function pickBord(n){draft._line.bordado=n;renderOrderSheet();}
 async function saveOrder(genPdf){
-  // capturar campos de texto libres
-  const telaOther=document.getElementById('telaOther');if(telaOther&&telaOther.value.trim())draft.tela=telaOther.value.trim();
-  const bordOther=document.getElementById('bordOther');if(bordOther&&bordOther.value.trim())draft.bordado=bordOther.value.trim();
-  draft.price=+draft.price||0;draft.cost=+draft.cost||0;
-  if(!draft.price||draft.price<=0){toast('Escribe el precio del producto');return;}
+  // Si el usuario dejó una prenda configurada sin agregar, la incorporamos
+  captureLineOthers();
+  const L=draft._line;
+  if((L.price>0)&&(!draft.items||!draft.items.length||draft._lineIdx!==null)){
+    // hay una línea con precio pendiente de confirmar
+    if(draft._lineIdx!==null){draft.items[draft._lineIdx]={...L,price:+L.price||0,cost:+L.cost||0};}
+    else{if(!Array.isArray(draft.items))draft.items=[];draft.items.push({...L,price:+L.price||0,cost:+L.cost||0});}
+    draft._line=nuevaLinea();draft._lineIdx=null;
+  }
+  if(!Array.isArray(draft.items)||!draft.items.length){toast('Agrega al menos una prenda al pedido');renderOrderSheet();return;}
+  // normalizar precios/costos de líneas
+  draft.items.forEach(it=>{it.price=+it.price||0;it.cost=+it.cost||0;});
+  const total=draft.items.reduce((s,it)=>s+it.price,0);
+  if(total<=0){toast('El total del pedido debe ser mayor a 0');return;}
   if(draft.status==='entregado'&&!draft.deliveredDate)draft.deliveredDate=draft.date;
   if(draft.status!=='entregado')draft.deliveredDate=null;
   if(!draft.payments)draft.payments=[];
   if(!draft.payMode)draft.payMode='5050';
   if(!draft._editId){
     if(draft.payMode==='total'){
-      draft.payments=[{date:draft.date,amount:draft.price}];
+      draft.payments=[{date:draft.date,amount:total}];
     }else if(draft.payMode==='5050'){
-      draft.payments=[{date:draft.date,amount:Math.round(draft.price*ANTICIPO)}];
+      draft.payments=[{date:draft.date,amount:Math.round(total*ANTICIPO)}];
     }else{
       draft.payments=[];
     }
   }
   if(draft.status==='entregado'){
     const paid=(draft.payments||[]).reduce((s,p)=>s+p.amount,0);
-    const bal=Math.round(draft.price-paid);
+    const bal=Math.round(total-paid);
     if(bal>0)draft.payments.push({date:draft.deliveredDate,amount:bal});
   }
+  // Limpiar campos internos y planos viejos antes de guardar
+  const clean={...draft};delete clean._line;delete clean._lineIdx;delete clean._editId;
+  ['product','collection','model','corte','talla','tela','bordado','price','cost','persoNombre'].forEach(k=>delete clean[k]);
   let savedId;
   if(draft._editId){
     const idx=state.orders.findIndex(o=>o.id===draft._editId);
-    const eid=draft._editId;delete draft._editId;
-    state.orders[idx]={...state.orders[idx],...draft,id:eid};
+    const eid=draft._editId;
+    state.orders[idx]={...state.orders[idx],...clean,id:eid};
+    // quitar restos de campos planos del objeto guardado
+    ['product','collection','model','corte','talla','tela','bordado','price','cost','persoNombre'].forEach(k=>delete state.orders[idx][k]);
     savedId=eid;
   }else{
-    delete draft._editId;
     savedId=uid();
-    state.orders.push({id:savedId,...draft});
+    state.orders.push({id:savedId,...clean});
   }
   await persist();closeSheet();renderAll();toast('Pedido guardado');
   if(genPdf){ setTimeout(()=>generarOrdenPDF(savedId),300); }
@@ -1137,7 +1270,7 @@ function openUsoReal(id){
   const o=state.orders.find(x=>x.id===id);if(!o)return;
   const planned=plannedConsumption(o);
   if(!planned.length){toast('Pedido entregado ✓');return;}
-  showSheet(`<h2>Uso real de materia prima</h2><p class="hint">${(o.product||'')} · ${o.collection}. Ajusta lo que realmente usaste vs. lo estándar. La diferencia se registra como desperdicio.</p>
+  showSheet(`<h2>Uso real de materia prima</h2><p class="hint">${orderSummary(o)}${o.client?' · '+o.client:''}. Ajusta lo que realmente usaste vs. lo estándar. La diferencia se registra como desperdicio.</p>
     ${planned.map(p=>{
       if(!p.supply)return `<div class="card" style="font-size:12px;color:var(--gold)">⚠️ Falta insumo "${p.templateName}" para el color de este pedido. Créalo en Insumos.</div>`;
       const real=(o.usoReal&&o.usoReal[p.supply.id]!=null)?o.usoReal[p.supply.id]:p.qty;
@@ -1374,49 +1507,70 @@ function generarOrdenPDF(id){
     fila('Teléfono:',o.phone);
     fila('Dirección de entrega:',o.address);
     y+=8;
-    seccion('DETALLE DEL PRODUCTO');
-    fila('Producto:',o.product||'—');
-    fila('Colección:',o.collection);
-    if(PROD_CON_MODELO.includes(o.product)&&o.model)fila('Modelo:',o.model);
-    fila('Talla:',o.talla);
-    fila('Color / tela:',o.tela);
-    fila('Tono de bordado:',o.bordado);
-    // Visual: foto del producto en su color + recuadro del color + imagen del bordado (grandes)
-    {
-      const hex=teladHex(o.tela);
+    const items=orderItems(o);
+    seccion(items.length>1?('DETALLE DEL PEDIDO · '+items.length+' PRENDAS'):'DETALLE DEL PRODUCTO');
+    // Tabla de líneas
+    const colX=[M, M+150, M+250, M+320, M+410, W-M];
+    doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(...grey);
+    doc.text('Producto / colección',colX[0],y);
+    doc.text('Modelo',colX[1],y);
+    doc.text('Talla',colX[2],y);
+    doc.text('Tela / bordado',colX[3],y);
+    doc.text('Precio',colX[5],y,{align:'right'});
+    y+=4;doc.setDrawColor(220,224,230);doc.setLineWidth(.5);doc.line(M,y,W-M,y);y+=13;
+    items.forEach(it=>{
+      if(y>760){doc.addPage();y=44;}
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...dark);
+      const pl=doc.splitTextToSize((it.product||'')+(it.persoNombre?' (con nombre)':''),140);
+      doc.text(pl,colX[0],y);
+      doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...grey);
+      doc.text(it.collection||'—',colX[0],y+11);
+      doc.setTextColor(...dark);doc.setFontSize(9);
+      doc.text((PROD_CON_MODELO.includes(it.product)&&it.model)?it.model:'—',colX[1],y);
+      doc.text(it.talla||'—',colX[2],y);
+      const tb=doc.splitTextToSize((it.tela||'—')+' / '+(it.bordado||'—'),90);
+      doc.text(tb,colX[3],y);
+      doc.setFont('helvetica','bold');doc.text(fmt(it.price),colX[5],y,{align:'right'});
+      const rowH=Math.max(pl.length*11, tb.length*11, 22);
+      y+=rowH+4;doc.setDrawColor(238,240,244);doc.setLineWidth(.4);doc.line(M,y-4,W-M,y-4);
+    });
+    y+=4;
+    // Bloque visual de cada línea (foto+color+bordado)
+    items.forEach((it,idx)=>{
+      const hex=teladHex(it.tela);
       const rgb=hexToRgb(hex);
-      const IW=95, IH=118; // tamaño imágenes grande
-      let vy=y+4, colX=M;
-      // 1) Foto del producto en su color (si existe en el banco)
-      const pimg=prodImgFor(o);
+      const IW=78, IH=96;
+      if(y+IH+40>800){doc.addPage();y=44;}
+      let vy=y+4, cx=M;
+      if(items.length>1){doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(...navy);doc.text('Prenda '+(idx+1)+': '+(it.product||''),M,vy+2);vy+=8;}
+      const pimg=prodImgFor(it);
       if(pimg){
-        doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...grey);
-        doc.text('Producto',colX,vy+10);
-        try{doc.addImage(pimg,'JPEG',colX,vy+16,IW,IH,undefined,'FAST');}catch(e){}
-        colX+=IW+18;
+        doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...grey);
+        doc.text('Producto',cx,vy+10);
+        try{doc.addImage(pimg,'JPEG',cx,vy+14,IW,IH,undefined,'FAST');}catch(e){}
+        cx+=IW+14;
       }
-      // 2) Recuadro del color de tela (HEX real)
       if(rgb){
-        doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...grey);
-        doc.text('Color',colX,vy+10);
+        doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...grey);
+        doc.text('Color',cx,vy+10);
         doc.setFillColor(rgb[0],rgb[1],rgb[2]);doc.setDrawColor(200,204,210);doc.setLineWidth(.5);
-        doc.roundedRect(colX,vy+16,IW,IH-30,5,5,'FD');
-        doc.setFontSize(8);doc.setTextColor(...grey);doc.text(hex.toUpperCase(),colX,vy+IH);
-        colX+=IW+18;
+        doc.roundedRect(cx,vy+14,IW,IH-28,5,5,'FD');
+        doc.setFontSize(7.5);doc.setTextColor(...grey);doc.text((it.tela||'')+' '+hex.toUpperCase(),cx,vy+IH-6);
+        cx+=IW+14;
       }
-      // 3) Imagen del bordado de la colección
-      const bimg=BORDADO_IMGS[o.collection];
+      const bimg=BORDADO_IMGS[it.collection];
       if(bimg){
-        doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...grey);
-        doc.text('Bordado · '+o.collection,colX,vy+10);
-        try{doc.addImage(bimg,'JPEG',colX,vy+16,IW-5,IH,undefined,'FAST');}catch(e){}
+        doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...grey);
+        doc.text('Bordado · '+it.collection,cx,vy+10);
+        try{doc.addImage(bimg,'JPEG',cx,vy+14,IW-4,IH,undefined,'FAST');}catch(e){}
       }
-      y=vy+16+IH+22;
-    }
-    y+=8;
+      y=vy+14+IH+16;
+    });
+    y+=6;
+    if(y>720){doc.addPage();y=44;}
     seccion('PAGO');
     const abonado=paidOf(o), saldo=balanceOf(o);
-    fila('Valor del producto:',fmt(o.price));
+    fila('Total del pedido:',fmt(orderTotal(o)));
     fila('Abono:',fmt(abonado));
     fila('Pendiente:',fmt(saldo));
     fila('Estado del pago:',saldo<=0?'PAGADO':'ABONADO');
@@ -1468,11 +1622,15 @@ function ordenPDFfallback(o){
       <div class="num"><b>${ordenNumero(o)}</b><br><span class="sub">Fecha: ${o.date||''}</span>${o.vendedor?'<br><span class="sub">Vendedor: '+o.vendedor+'</span>':''}</div></div>
     <h2>DATOS DEL CLIENTE</h2><table>
       ${row('Nombre y apellido',o.client)}${row('Cédula / NIT',o.cedula)}${row('Teléfono',o.phone)}${row('Dirección',o.address)}</table>
-    <h2>DETALLE DEL PRODUCTO</h2><table>
-      ${row('Producto',o.product)}${row('Colección',o.collection)}${(PROD_CON_MODELO.includes(o.product)&&o.model)?row('Modelo',o.model):''}${row('Talla',o.talla)}${row('Color / tela',o.tela)}${row('Tono de bordado',o.bordado)}</table>
+    <h2>${orderItems(o).length>1?'DETALLE DEL PEDIDO · '+orderItems(o).length+' PRENDAS':'DETALLE DEL PRODUCTO'}</h2>
+    <table style="width:100%;border-collapse:collapse">
+      <tr style="border-bottom:1px solid #dde0e6"><th style="text-align:left;color:#6e7887;font-size:11px;padding:4px 8px 4px 0">Producto</th><th style="text-align:left;color:#6e7887;font-size:11px;padding:4px 8px">Colección</th><th style="text-align:left;color:#6e7887;font-size:11px;padding:4px 8px">Modelo</th><th style="text-align:left;color:#6e7887;font-size:11px;padding:4px 8px">Talla</th><th style="text-align:left;color:#6e7887;font-size:11px;padding:4px 8px">Tela / bordado</th><th style="text-align:right;color:#6e7887;font-size:11px;padding:4px 0 4px 8px">Precio</th></tr>
+      ${orderItems(o).map(it=>`<tr style="border-bottom:1px solid #eef0f4"><td style="font-weight:600;color:#1e2837;padding:6px 8px 6px 0">${it.product||'—'}${it.persoNombre?' <span style="color:#3F513E;font-size:11px">(con nombre)</span>':''}</td><td style="padding:6px 8px">${it.collection||'—'}</td><td style="padding:6px 8px">${(PROD_CON_MODELO.includes(it.product)&&it.model)?it.model:'—'}</td><td style="padding:6px 8px">${it.talla||'—'}</td><td style="padding:6px 8px">${(it.tela||'—')+' / '+(it.bordado||'—')}</td><td style="text-align:right;font-weight:600;padding:6px 0 6px 8px">${fmt(it.price)}</td></tr>`).join('')}
+      <tr><td colspan="5" style="text-align:right;font-weight:700;color:#3F513E;padding:8px 8px 0 0">Total</td><td style="text-align:right;font-weight:700;color:#3F513E;padding:8px 0 0 8px">${fmt(orderTotal(o))}</td></tr>
+    </table>
 
     <h2>PAGO</h2><table>
-      ${row('Valor del producto',fmt(o.price))}${row('Abono',fmt(abonado))}${row('Pendiente',fmt(saldo))}${row('Estado del pago',saldo<=0?'PAGADO':'ABONADO')}${row('Medio de pago',o.medioPago)}${row('Estado del pedido',estados[o.status]||o.status)}</table>
+      ${row('Total del pedido',fmt(orderTotal(o)))}${row('Abono',fmt(abonado))}${row('Pendiente',fmt(saldo))}${row('Estado del pago',saldo<=0?'PAGADO':'ABONADO')}${row('Medio de pago',o.medioPago)}${row('Estado del pedido',estados[o.status]||o.status)}</table>
     ${o.note?`<h2>OBSERVACIONES</h2><div style="font-size:13px">${o.note}</div>`:''}
     ${o.foto?`<h2>DISEÑO</h2><img class="d" src="${o.foto}">`:''}
     <div style="border-top:1px solid #dde0e6;margin-top:26px;padding-top:12px;text-align:center">
@@ -1540,6 +1698,13 @@ function migrateConfig(){
       if(!o.medioPago)o.medioPago='';
       if(o.cedula==null)o.cedula='';
       if(!o.corte)o.corte='Regular';
+      // Migrar a multi-producto: envolver el pedido plano en una línea
+      if(!Array.isArray(o.items)||!o.items.length){
+        o.items=[{product:o.product,collection:o.collection,model:o.model,corte:o.corte,talla:o.talla,
+          tela:o.tela,bordado:o.bordado,price:+o.price||0,cost:+o.cost||0,persoNombre:!!o.persoNombre}];
+      }
+      // Quitar campos planos ya migrados (evita duplicidad)
+      ['product','collection','model','talla','tela','bordado','price','cost','persoNombre'].forEach(k=>delete o[k]);
     });
   }
 }
