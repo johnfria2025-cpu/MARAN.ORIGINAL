@@ -925,7 +925,7 @@ function closeSheet(){sheet.classList.remove('show');scrim.classList.remove('sho
 let draft={};
 // Crea una línea de producto en blanco
 function nuevaLinea(){return {product:PRODUCTS[0],collection:COLECCIONES[0],model:MODELS[0],corte:CORTES[0],talla:'M',tela:'',bordado:'',persoNombre:false,
-  price:precioOficial(PRODUCTS[0],COLECCIONES[0]),cost:0};}
+  price:precioOficial(PRODUCTS[0],COLECCIONES[0]),cost:0,_dirty:false};}
 function openNewOrder(id){
   const o=id?state.orders.find(x=>x.id===id):null;
   if(o){
@@ -953,7 +953,7 @@ function renderOrderSheet(){
     <div class="cn">${c===CUSTOM_COL?'✦':''} ${c}</div>
     <div class="cp">${c===CUSTOM_COL?'a definir':'Grupo '+grupoDe(c)}</div></div>`).join('');
   const modelChips=MODELS.map(m=>`<button class="chip ${L.model===m?'on':''}" onclick="pickModel('${m}')">${m}</button>`).join('');
-  const corteChips=CORTES.map(c=>`<button class="chip ${L.corte===c?'on':''}" onclick="draft._line.corte='${c}';renderOrderSheet()">${c}</button>`).join('');
+  const corteChips=CORTES.map(c=>`<button class="chip ${L.corte===c?'on':''}" onclick="draft._line._dirty=true;draft._line.corte='${c}';renderOrderSheet()">${c}</button>`).join('');
   const telaChips=tonosTela().map(([n,h])=>`<button class="chip ${L.tela===n?'on':''}" onclick="pickTela('${n.replace(/'/g,"\\'")}')"><span class="swatch" style="background:${h}"></span>${n}</button>`).join('');
   const bordChips=tonosBordado().map(([n,h])=>`<button class="chip ${L.bordado===n?'on':''}" onclick="pickBord('${n.replace(/'/g,"\\'")}')"><span class="swatch" style="background:${h}"></span>${n}</button>`).join('');
   const medioOpts=MEDIOS_PAGO.map(m=>`<option value="${m}" ${draft.medioPago===m?'selected':''}>${m}</option>`).join('');
@@ -983,14 +983,14 @@ function renderOrderSheet(){
     ${BORDADO_IMGS[L.collection]?`<div style="text-align:center;margin-top:8px"><img src="${BORDADO_IMGS[L.collection]}" style="height:90px;border-radius:8px;border:1px solid var(--line)"><div style="font-size:10px;color:var(--grey);margin-top:4px">Bordado ${L.collection}</div></div>`:''}
     ${conModelo?`<label class="f">Modelo</label><div style="display:flex;flex-wrap:wrap">${modelChips}</div>
     <label class="f">Corte</label><div style="display:flex;flex-wrap:wrap">${corteChips}</div>
-    <label class="f">Talla</label><div style="display:flex;flex-wrap:wrap">${TALLAS.map(t=>`<button class="chip ${L.talla===t?'on':''}" onclick="draft._line.talla='${t}';renderOrderSheet()" style="min-width:48px;justify-content:center">${t}</button>`).join('')}</div>`:''}
+    <label class="f">Talla</label><div style="display:flex;flex-wrap:wrap">${TALLAS.map(t=>`<button class="chip ${L.talla===t?'on':''}" onclick="draft._line._dirty=true;draft._line.talla='${t}';renderOrderSheet()" style="min-width:48px;justify-content:center">${t}</button>`).join('')}</div>`:''}
     <label class="f">Color / tono de tela</label><div style="display:flex;flex-wrap:wrap">${telaChips}
-      <input id="telaOther" placeholder="Otro tono..." value="${tonosTela().some(t=>t[0]===L.tela)?'':(L.tela||'')}" oninput="draft._line.tela=this.value;" style="width:auto;flex:1;min-width:120px;margin-bottom:6px"></div>
+      <input id="telaOther" placeholder="Otro tono..." value="${tonosTela().some(t=>t[0]===L.tela)?'':(L.tela||'')}" oninput="draft._line._dirty=true;draft._line.tela=this.value;" style="width:auto;flex:1;min-width:120px;margin-bottom:6px"></div>
     <label class="f">Tono de bordado</label><div style="display:flex;flex-wrap:wrap">${bordChips}
-      <input id="bordOther" placeholder="Otro tono..." value="${tonosBordado().some(t=>t[0]===L.bordado)?'':(L.bordado||'')}" oninput="draft._line.bordado=this.value;" style="width:auto;flex:1;min-width:120px;margin-bottom:6px"></div>
-    <label class="f"><input type="checkbox" ${L.persoNombre?'checked':''} onchange="draft._line.persoNombre=this.checked;syncPrice();renderOrderSheet()" style="width:auto;margin-right:6px">Personalización con nombre (+${fmt(PERSONALIZACION_NOMBRE)})</label>
-    <div class="two"><div><label class="f">Precio de la prenda</label><input id="oPrice" type="number" inputmode="numeric" value="${L.price||''}" oninput="draft._line.price=+this.value" placeholder="0"></div>
-      <div><label class="f">Costo (opcional)</label><input id="oCost" type="number" inputmode="numeric" value="${L.cost||''}" oninput="draft._line.cost=+this.value" placeholder="0"></div></div>
+      <input id="bordOther" placeholder="Otro tono..." value="${tonosBordado().some(t=>t[0]===L.bordado)?'':(L.bordado||'')}" oninput="draft._line._dirty=true;draft._line.bordado=this.value;" style="width:auto;flex:1;min-width:120px;margin-bottom:6px"></div>
+    <label class="f"><input type="checkbox" ${L.persoNombre?'checked':''} onchange="draft._line._dirty=true;draft._line.persoNombre=this.checked;syncPrice();renderOrderSheet()" style="width:auto;margin-right:6px">Personalización con nombre (+${fmt(PERSONALIZACION_NOMBRE)})</label>
+    <div class="two"><div><label class="f">Precio de la prenda</label><input id="oPrice" type="number" inputmode="numeric" value="${L.price||''}" oninput="draft._line._dirty=true;draft._line.price=+this.value" placeholder="0"></div>
+      <div><label class="f">Costo (opcional)</label><input id="oCost" type="number" inputmode="numeric" value="${L.cost||''}" oninput="draft._line._dirty=true;draft._line.cost=+this.value" placeholder="0"></div></div>
     ${precioAuto?`<div style="font-size:11px;color:var(--grey);margin-top:6px">Precio automático: ${L.product} · Grupo ${grupoDe(L.collection)} = <b class="tl">${fmt(precioOficial(L.product,L.collection))}</b>${L.persoNombre?' + '+fmt(PERSONALIZACION_NOMBRE)+' nombre':''}. Puedes ajustarlo.</div>`:`<div style="font-size:11px;color:var(--grey);margin-top:6px">Colección personalizada: define el precio a mano.</div>`}
     <button class="btn" style="margin-top:10px" onclick="commitLinea()">${editando?'✓ Guardar prenda':'➕ Agregar al pedido'}</button>
     ${editando?`<button class="btn ghost" style="margin-top:8px" onclick="cancelLinea()">Cancelar edición</button>`:''}
@@ -1038,14 +1038,15 @@ function commitLinea(){
   L.price=+L.price||0;L.cost=+L.cost||0;
   if(!L.price||L.price<=0){toast('Escribe el precio de la prenda');return;}
   if(!Array.isArray(draft.items))draft.items=[];
-  if(draft._lineIdx!==null){draft.items[draft._lineIdx]={...L};}
-  else{draft.items.push({...L});}
+  const rec={...L};delete rec._dirty;
+  if(draft._lineIdx!==null){draft.items[draft._lineIdx]=rec;}
+  else{draft.items.push(rec);}
   draft._line=nuevaLinea();draft._lineIdx=null;
   renderOrderSheet();
 }
 function editLinea(i){
   captureLineOthers();
-  draft._line={...draft.items[i]};draft._lineIdx=i;
+  draft._line={...draft.items[i],_dirty:true};draft._lineIdx=i;
   renderOrderSheet();
 }
 function cancelLinea(){draft._line=nuevaLinea();draft._lineIdx=null;renderOrderSheet();}
@@ -1055,9 +1056,9 @@ function delLinea(i){
   else if(draft._lineIdx!==null&&draft._lineIdx>i){draft._lineIdx--;}
   renderOrderSheet();
 }
-function pickProduct(p){draft._line.product=p;if(!PROD_CON_MODELO.includes(p)){draft._line.model='';}else if(!draft._line.model)draft._line.model=MODELS[0];syncPrice();renderOrderSheet();}
-function pickColl(c){draft._line.collection=c;syncPrice();renderOrderSheet();}
-function pickModel(m){draft._line.model=m;renderOrderSheet();}
+function pickProduct(p){draft._line._dirty=true;draft._line.product=p;if(!PROD_CON_MODELO.includes(p)){draft._line.model='';}else if(!draft._line.model)draft._line.model=MODELS[0];syncPrice();renderOrderSheet();}
+function pickColl(c){draft._line._dirty=true;draft._line.collection=c;syncPrice();renderOrderSheet();}
+function pickModel(m){draft._line._dirty=true;draft._line.model=m;renderOrderSheet();}
 function syncPrice(){
   // Autocompleta precio oficial de la línea si aplica (no personalizado)
   if(usaMatrizPrecio(draft._line.product,draft._line.collection)){
@@ -1084,21 +1085,24 @@ function loadFoto(e){
   };
   r.readAsDataURL(f);
 }
-function pickTela(n){draft._line.tela=n;renderOrderSheet();}
-function pickBord(n){draft._line.bordado=n;renderOrderSheet();}
+function pickTela(n){draft._line._dirty=true;draft._line.tela=n;renderOrderSheet();}
+function pickBord(n){draft._line._dirty=true;draft._line.bordado=n;renderOrderSheet();}
 async function saveOrder(genPdf){
-  // Si el usuario dejó una prenda configurada sin agregar, la incorporamos
+  // Si el usuario dejó una prenda configurada en el editor sin tocar "Agregar",
+  // la incorporamos automáticamente para que su precio SIEMPRE entre al total.
   captureLineOthers();
   const L=draft._line;
-  if((L.price>0)&&(!draft.items||!draft.items.length||draft._lineIdx!==null)){
-    // hay una línea con precio pendiente de confirmar
-    if(draft._lineIdx!==null){draft.items[draft._lineIdx]={...L,price:+L.price||0,cost:+L.cost||0};}
-    else{if(!Array.isArray(draft.items))draft.items=[];draft.items.push({...L,price:+L.price||0,cost:+L.cost||0});}
+  if(!Array.isArray(draft.items))draft.items=[];
+  // Solo incorporamos la línea del editor si el usuario la tocó (evita sumar la línea en blanco por defecto)
+  if(L && L._dirty && (+L.price>0)){
+    const rec={...L,price:+L.price||0,cost:+L.cost||0};delete rec._dirty;
+    if(draft._lineIdx!==null){draft.items[draft._lineIdx]=rec;}
+    else{draft.items.push(rec);}
     draft._line=nuevaLinea();draft._lineIdx=null;
   }
   if(!Array.isArray(draft.items)||!draft.items.length){toast('Agrega al menos una prenda al pedido');renderOrderSheet();return;}
-  // normalizar precios/costos de líneas
-  draft.items.forEach(it=>{it.price=+it.price||0;it.cost=+it.cost||0;});
+  // normalizar precios/costos de líneas y limpiar banderas internas
+  draft.items.forEach(it=>{it.price=+it.price||0;it.cost=+it.cost||0;delete it._dirty;});
   const total=draft.items.reduce((s,it)=>s+it.price,0);
   if(total<=0){toast('El total del pedido debe ser mayor a 0');return;}
   if(draft.status==='entregado'&&!draft.deliveredDate)draft.deliveredDate=draft.date;
